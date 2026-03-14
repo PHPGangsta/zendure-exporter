@@ -742,7 +742,10 @@ func TestParsePayload_IgnoredFieldsNotInMetrics(t *testing.T) {
 	for _, f := range ignoredFields {
 		fields[f] = 42
 	}
-	body, _ := json.Marshal(fields)
+	body, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatalf("failed to marshal fields: %v", err)
+	}
 
 	c := New(testConfig("http://unused", true), testLogger())
 	data, err := c.parsePayload(testDevice("http://unused"), body)

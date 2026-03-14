@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 
 	"zendure-exporter/internal/client"
 	"zendure-exporter/internal/config"
@@ -38,27 +36,6 @@ func collectMetrics(t *testing.T, col *Collector) map[string]*io_prometheus.Metr
 		result[f.GetName()] = f
 	}
 	return result
-}
-
-// collectMetricsText returns the /metrics text output for debugging.
-func collectMetricsText(t *testing.T, col *Collector) string {
-	t.Helper()
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(col)
-
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
-	}
-
-	var buf strings.Builder
-	enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
-	for _, f := range families {
-		if err := enc.Encode(f); err != nil {
-			t.Fatalf("encode failed: %v", err)
-		}
-	}
-	return buf.String()
 }
 
 func devicePayload() map[string]any {
@@ -87,7 +64,7 @@ func devicePayload() map[string]any {
 func newTestServer(payload map[string]any) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(payload)
+		_ = json.NewEncoder(w).Encode(payload)
 	}))
 }
 
@@ -431,7 +408,10 @@ func TestCollector_ErrorCounterIncrements(t *testing.T) {
 	// Second scrape (re-register since Prometheus registry doesn't allow double registration).
 	reg2 := prometheus.NewRegistry()
 	reg2.MustRegister(col)
-	families2, _ := reg2.Gather()
+	families2, err := reg2.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather from registry: %v", err)
+	}
 	m2 := make(map[string]*io_prometheus.MetricFamily)
 	for _, f := range families2 {
 		m2[f.GetName()] = f

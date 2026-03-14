@@ -16,11 +16,6 @@ var packLabels = []string{"device_id", "device_model", "pack_sn"}
 var channelLabels = []string{"device_id", "device_model", "channel"}
 var discoveryLabels = []string{"device_id", "device_model", "field"}
 
-// metricDef holds the descriptor and help text for a single Prometheus metric.
-type metricDef struct {
-	desc *prometheus.Desc
-}
-
 // Collector implements prometheus.Collector. It fetches metrics from Zendure
 // devices on every Prometheus scrape and exposes them as Prometheus metrics.
 type Collector struct {

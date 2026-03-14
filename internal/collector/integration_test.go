@@ -24,21 +24,21 @@ func newDelayedServer(delay time.Duration, payload map[string]any) *httptest.Ser
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(delay)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(payload)
+		_ = json.NewEncoder(w).Encode(payload)
 	}))
 }
 
 func newMalformedJSONServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"solarInputPower": 100, INVALID`)
+		_, _ = fmt.Fprint(w, `{"solarInputPower": 100, INVALID`)
 	}))
 }
 
 func newPartialPayloadServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"electricLevel": 42}`)
+		_, _ = fmt.Fprint(w, `{"electricLevel": 42}`)
 	}))
 }
 
