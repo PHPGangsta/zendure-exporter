@@ -22,6 +22,7 @@ type Collector struct {
 	cfg    *config.Config
 	client *client.Client
 	logger *slog.Logger
+	version string
 
 	// Device-level metric descriptors (keyed by metric name from client).
 	deviceMetrics map[string]*prometheus.Desc
@@ -34,6 +35,7 @@ type Collector struct {
 	discoveryDesc *prometheus.Desc
 
 	// Self-metrics.
+	buildInfo          *prometheus.Desc
 	scrapeDuration     *prometheus.Desc
 	scrapeSuccess      *prometheus.Desc
 	upstreamErrors     *prometheus.Desc
@@ -48,11 +50,12 @@ type Collector struct {
 }
 
 // New creates a new Collector instance.
-func New(cfg *config.Config, logger *slog.Logger) *Collector {
+func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 	c := &Collector{
-		cfg:    cfg,
-		client: client.New(cfg, logger),
-		logger: logger,
+		cfg:     cfg,
+		client:  client.New(cfg, logger),
+		logger:  logger,
+		version: version,
 
 		deviceMetrics:  make(map[string]*prometheus.Desc),
 		channelMetrics: make(map[string]*prometheus.Desc),
@@ -80,8 +83,8 @@ func New(cfg *config.Config, logger *slog.Logger) *Collector {
 }
 
 // NewWithClient creates a Collector with an injected client (for testing).
-func NewWithClient(cfg *config.Config, logger *slog.Logger, cl *client.Client) *Collector {
-	c := New(cfg, logger)
+func NewWithClient(cfg *config.Config, logger *slog.Logger, cl *client.Client, version string) *Collector {
+	c := New(cfg, logger, version)
 	c.client = cl
 	return c
 }
@@ -168,6 +171,11 @@ func (c *Collector) registerPackMetrics() {
 }
 
 func (c *Collector) registerSelfMetrics() {
+	c.buildInfo = prometheus.NewDesc(
+		"zendure_exporter_build_info",
+		"A metric with a constant '1' value labeled by version from which zendure-exporter was built",
+		[]string{"version"}, nil,
+	)
 	c.scrapeDuration = prometheus.NewDesc(
 		"zendure_exporter_scrape_duration_seconds",
 		"Total duration of last scrape in seconds",
@@ -210,6 +218,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 		ch <- c.discoveryDesc
 	}
 
+	ch <- c.buildInfo
 	ch <- c.scrapeDuration
 	ch <- c.scrapeSuccess
 	ch <- c.upstreamErrors
@@ -220,6 +229,10 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 // Collect implements prometheus.Collector. It fetches device data on every scrape.
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
+
+	ch <- prometheus.MustNewConstMetric(
+		c.buildInfo, prometheus.GaugeValue, 1, c.version,
+	)
 
 	for _, dev := range c.cfg.Devices {
 		if !dev.Enabled {

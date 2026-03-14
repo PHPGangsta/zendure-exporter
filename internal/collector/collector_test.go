@@ -91,7 +91,7 @@ func TestCollector_BasicDeviceMetrics(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -110,7 +110,7 @@ func TestCollector_TemperatureConversion(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValueApprox(t, metrics, "zendure_enclosure_temperature_celsius", 28.0, 0.1, "device_id", "test_device")
@@ -121,7 +121,7 @@ func TestCollector_VoltageConversion(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValueApprox(t, metrics, "zendure_battery_voltage_volts", 52.0, 0.01, "device_id", "test_device")
@@ -132,7 +132,7 @@ func TestCollector_ChannelMetrics(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -163,7 +163,7 @@ func TestCollector_BatteryPackMetrics(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -179,7 +179,7 @@ func TestCollector_ScrapeSuccessOnSuccess(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValue(t, metrics, "zendure_exporter_scrape_success", 1, "device_id", "test_device")
@@ -190,7 +190,7 @@ func TestCollector_ScrapeSuccessOnFailure(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -205,7 +205,7 @@ func TestCollector_NoDeviceMetricsOnFailure(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -220,7 +220,7 @@ func TestCollector_ScrapeDuration(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -239,7 +239,7 @@ func TestCollector_LastSuccessTimestamp(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -258,7 +258,7 @@ func TestCollector_NoLastSuccessOnFailure(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -286,7 +286,7 @@ func TestCollector_MultiDevice_OneFailsOtherSucceeds(t *testing.T) {
 			{ID: "bad_device", Model: "SolarFlow800 Pro", BaseURL: badSrv.URL, Enabled: true},
 		},
 	}
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -327,7 +327,7 @@ func TestCollector_DisabledDeviceSkipped(t *testing.T) {
 			{ID: "disabled_device", Model: "SolarFlow800", BaseURL: srv.URL, Enabled: false},
 		},
 	}
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -352,7 +352,7 @@ func TestCollector_DiscoveryMode(t *testing.T) {
 
 	cfg := newTestConfig(srv.URL)
 	cfg.DiscoveryMode = true
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -385,7 +385,7 @@ func TestCollector_DiscoveryModeOff(t *testing.T) {
 
 	cfg := newTestConfig(srv.URL)
 	cfg.DiscoveryMode = false
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -399,7 +399,7 @@ func TestCollector_ErrorCounterIncrements(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	// First scrape.
 	metrics1 := collectMetrics(t, col)
@@ -424,7 +424,7 @@ func TestCollector_DeviceLabelsPresent(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 
@@ -457,7 +457,7 @@ func TestCollector_Describe(t *testing.T) {
 			{ID: "test", Model: "SolarFlow800", BaseURL: "http://localhost", Enabled: true},
 		},
 	}
-	col := New(cfg, testLogger())
+	col := New(cfg, testLogger(), "v1.0.0")
 
 	ch := make(chan *prometheus.Desc, 200)
 	col.Describe(ch)
@@ -486,7 +486,7 @@ func TestCollector_RWConfigMetrics(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValue(t, metrics, "zendure_ac_mode", 2, "device_id", "test_device")

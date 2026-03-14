@@ -7,7 +7,7 @@ COPY . .
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /zendure-exporter ./cmd/zendure-exporter
 
-FROM alpine:3.20
+FROM alpine:3.23
 
 RUN adduser -D -u 1000 exporter
 COPY --from=builder /zendure-exporter /usr/local/bin/zendure-exporter

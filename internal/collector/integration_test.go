@@ -66,7 +66,7 @@ func TestIntegration_MetricsEndpoint_ContainsExpectedMetrics(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
@@ -124,7 +124,7 @@ func TestIntegration_MetricsEndpoint_Values(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
@@ -164,7 +164,7 @@ func TestIntegration_MultiDevice_SuccessTimeoutMalformed(t *testing.T) {
 			{ID: "broken", Model: "SolarFlow2400 AC", BaseURL: badSrv.URL, Enabled: true},
 		},
 	}
-	col := NewWithClient(cfg, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
@@ -207,7 +207,7 @@ func TestIntegration_PartialPayload(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
@@ -232,11 +232,12 @@ func TestIntegration_SelfMetrics_AllPresent(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
 	requiredSelfMetrics := []string{
+		"zendure_exporter_build_info",
 		"zendure_exporter_scrape_duration_seconds",
 		"zendure_exporter_scrape_success",
 		"zendure_exporter_upstream_request_errors_total",
@@ -248,6 +249,9 @@ func TestIntegration_SelfMetrics_AllPresent(t *testing.T) {
 			t.Errorf("missing self-metric %q in /metrics output", m)
 		}
 	}
+	if !strings.Contains(body, `zendure_exporter_build_info{version="v1.0.0"} 1`) {
+		t.Error("zendure_exporter_build_info missing or wrong")
+	}
 }
 
 func TestIntegration_SelfMetrics_OnError(t *testing.T) {
@@ -255,7 +259,7 @@ func TestIntegration_SelfMetrics_OnError(t *testing.T) {
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
@@ -286,7 +290,7 @@ func TestIntegration_DiscoveryMode_UnknownFieldsInOutput(t *testing.T) {
 
 	cfg := newTestConfig(srv.URL)
 	cfg.DiscoveryMode = true
-	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()))
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
 
 	body := scrapeMetricsHTTP(t, col)
 
