@@ -89,7 +89,7 @@ func main() {
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
+		_, _ = fmt.Fprintln(w, "OK")
 	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.ListenAddr, cfg.ListenPort)

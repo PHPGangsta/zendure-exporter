@@ -8,6 +8,17 @@ go test -v ./...
 ```
 This will execute unit tests for all packages (client, collector, config) and integration tests.
 
+### Linting
+To maintain code quality, we use `golangci-lint`. You should run it locally before pushing:
+```bash
+golangci-lint run
+```
+
+If you don't have it installed, you can install it via:
+- **Snap (Linux)**: `sudo snap install golangci-lint`
+- **Homebrew (macOS/Linux)**: `brew install golangci-lint`
+- **Go**: `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`
+
 ### Local Development & Docker
 While the project includes a `Dockerfile` for deployment, running `docker build -t zendure-exporter:ci .` locally might fail on some systems due to file permissions if the local environment has different UID/GID settings than the container's build context. 
 The recommended way to test locally is:

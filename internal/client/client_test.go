@@ -618,7 +618,7 @@ func TestFetchDevice_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"solarInputPower": 1000, "electricLevel": 50}`)
+		_, _ = fmt.Fprint(w, `{"solarInputPower": 1000, "electricLevel": 50}`)
 	}))
 	defer server.Close()
 
@@ -635,7 +635,7 @@ func TestFetchDevice_Success(t *testing.T) {
 func TestFetchDevice_HTTP500(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, "internal error")
+		_, _ = fmt.Fprint(w, "internal error")
 	}))
 	defer server.Close()
 
@@ -648,7 +648,7 @@ func TestFetchDevice_HTTP500(t *testing.T) {
 
 func TestFetchDevice_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "not json at all")
+		_, _ = fmt.Fprint(w, "not json at all")
 	}))
 	defer server.Close()
 
@@ -672,7 +672,7 @@ func TestFetchDevice_TrailingSlashInBaseURL(t *testing.T) {
 		if r.URL.Path != "/properties/report" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		fmt.Fprint(w, `{"solarInputPower": 42}`)
+		_, _ = fmt.Fprint(w, `{"solarInputPower": 42}`)
 	}))
 	defer server.Close()
 

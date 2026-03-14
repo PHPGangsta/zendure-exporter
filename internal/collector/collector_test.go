@@ -71,7 +71,7 @@ func newTestServer(payload map[string]any) *httptest.Server {
 func newErrorServer(statusCode int) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
-		fmt.Fprintln(w, "error")
+		_, _ = fmt.Fprintln(w, "error")
 	}))
 }
 

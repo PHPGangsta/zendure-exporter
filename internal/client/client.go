@@ -66,7 +66,7 @@ func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request to %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
