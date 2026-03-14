@@ -20,3 +20,12 @@ We use semantic versioning (e.g., `v1.0.0`). The version is injected at build ti
 
 1.  **Create a tag**: `git tag v1.0.0`
 2.  **Push the tag**: `git push origin v1.0.0`
+
+### GitHub Release (Optional but Recommended)
+To make it look official on your repository's homepage:
+1.  Go to your repository on GitHub.
+2.  On the right side, click on **"Releases"** -> **"Create a new release"**.
+3.  Click **"Choose a tag"** and select `v1.0.0`.
+4.  Give it a title (e.g., `Initial Release v1.0.0`).
+5.  Click **"Generate release notes"** (GitHub will automatically list your commits).
+6.  Click **"Publish release"**.
