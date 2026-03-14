@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -19,10 +20,30 @@ import (
 	"zendure-exporter/internal/config"
 )
 
+var version = "dev"
+
+func getVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+	return version
+}
+
 func main() {
 	configPath := flag.String("config", "config.yml", "Path to configuration file")
 	checkConfig := flag.Bool("check-config", false, "Validate config and exit")
+	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("zendure-exporter %s\n", getVersion())
+		os.Exit(0)
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -37,6 +58,7 @@ func main() {
 
 	logger := setupLogger(cfg.Debug)
 	logger.Info("starting zendure-exporter",
+		"version", getVersion(),
 		"listen_addr", cfg.ListenAddr,
 		"listen_port", cfg.ListenPort,
 		"devices", len(cfg.Devices),

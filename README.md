@@ -1,5 +1,8 @@
 # Zendure Prometheus Exporter
 
+[![CI](https://github.com/PHPGangsta/zendure-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/PHPGangsta/zendure-exporter/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/PHPGangsta/zendure-exporter)](https://goreportcard.com/report/github.com/PHPGangsta/zendure-exporter)
+[![Go Reference](https://pkg.go.dev/badge/github.com/PHPGangsta/zendure-exporter.svg)](https://pkg.go.dev/github.com/PHPGangsta/zendure-exporter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A Prometheus exporter for [Zendure SolarFlow](https://www.zendure.com/) devices. Scrapes the local device HTTP API (`/properties/report`) and exposes all metrics on a single `/metrics` endpoint for Prometheus to consume.
@@ -133,6 +136,14 @@ zendure-exporter --check-config --config config.yml
 
 Exits `0` with `OK` on valid config, non-zero with an actionable error message on invalid config.
 
+### Show Version
+
+```bash
+zendure-exporter --version
+```
+
+The version is typically "dev" when built locally without flags, or set to the Git tag when built via CI or Docker.
+
 ## Endpoints
 
 | Path       | Description                 |
@@ -257,8 +268,9 @@ When a firmware update introduces new API fields or you want to expose additiona
 
 ### Versioning and Release Notes
 
+- This project uses Git tags for versioning (e.g., `v1.0.0`).
+- The version string is injected into the binary at build time using `-ldflags`.
 - When making changes, update the relevant documentation (`README.md`, `metric-spec.md`).
-- The Docker image is rebuilt on each deployment via `docker compose up -d --build`.
 
 ## Development
 
@@ -269,7 +281,11 @@ When a firmware update introduces new API fields or you want to expose additiona
 ### Build
 
 ```bash
+# Basic build (version will be "dev")
 go build ./cmd/zendure-exporter
+
+# Build with specific version
+go build -ldflags="-X main.version=v1.0.0" ./cmd/zendure-exporter
 ```
 
 ### Run Tests
