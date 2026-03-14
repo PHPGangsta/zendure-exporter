@@ -1,0 +1,12 @@
+services:
+  zendure-exporter:
+    build: .
+    container_name: zendure-exporter
+    restart: unless-stopped
+    ports:
+      - "9854:9854"
+    volumes:
+      - ./config.yml:/etc/zendure-exporter/config.yml:ro
+    # Use host network if Zendure devices are on the local LAN
+    # and not reachable from the default Docker bridge network:
+    # network_mode: host

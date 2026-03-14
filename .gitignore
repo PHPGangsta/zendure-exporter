@@ -1,0 +1,8 @@
+# compiled binary
+zendure-exporter
+
+# IDE
+.idea/
+
+# config with real credentials
+config.yml

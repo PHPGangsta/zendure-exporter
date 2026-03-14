@@ -1,0 +1,13 @@
+documentation/
+scripts/
+grafana/
+.github/
+*.md
+!README.md
+.git
+.gitignore
+.idea/
+docker-compose.yml
+config.yml
+config.example.yml
+LICENSE

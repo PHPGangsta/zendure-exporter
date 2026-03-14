@@ -1,0 +1,16 @@
+listen_addr: 0.0.0.0
+listen_port: 9854
+discovery_mode: false
+debug: false
+
+device_request_timeout_seconds: 5
+
+devices:
+  - id: sf800pro_basement
+    model: SolarFlow800 Pro
+    base_url: http://192.168.1.101
+    enabled: true
+  - id: sf2400ac_apartment2
+    model: SolarFlow2400 AC
+    base_url: http://192.168.1.102
+    enabled: true
