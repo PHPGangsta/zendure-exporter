@@ -1,12 +1,15 @@
+// Package client fetches and parses metrics from Zendure device HTTP APIs.
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,11 +61,16 @@ func New(cfg *config.Config, logger *slog.Logger) *Client {
 func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 	url := strings.TrimRight(dev.BaseURL, "/") + "/properties/report"
 
-	httpClient := &http.Client{
-		Timeout: time.Duration(c.cfg.EffectiveTimeout(dev)) * time.Second,
+	timeout := time.Duration(c.cfg.EffectiveTimeout(dev)) * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for %s: %w", url, err)
 	}
 
-	resp, err := httpClient.Get(url)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request to %s: %w", url, err)
 	}
@@ -71,7 +79,7 @@ func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		if err != nil {
-			return nil, fmt.Errorf("HTTP %d from %s (failed to read body: %v)", resp.StatusCode, url, err)
+			return nil, fmt.Errorf("HTTP %d from %s (failed to read body: %w)", resp.StatusCode, url, err)
 		}
 		return nil, fmt.Errorf("HTTP %d from %s: %s", resp.StatusCode, url, string(body))
 	}
@@ -139,7 +147,7 @@ func (c *Client) parsePayload(dev config.DeviceConfig, body []byte) (*DeviceData
 				if data.ChannelMetrics["zendure_solar_power_channel_watts"] == nil {
 					data.ChannelMetrics["zendure_solar_power_channel_watts"] = make(map[string]float64)
 				}
-				data.ChannelMetrics["zendure_solar_power_channel_watts"][fmt.Sprintf("%d", ch)] = f
+				data.ChannelMetrics["zendure_solar_power_channel_watts"][strconv.Itoa(ch)] = f
 			}
 		}
 	}

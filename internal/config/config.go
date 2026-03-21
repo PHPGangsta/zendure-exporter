@@ -1,6 +1,8 @@
+// Package config handles loading and validation of the exporter configuration.
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -8,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DeviceConfig holds the configuration for a single Zendure device.
 type DeviceConfig struct {
 	ID             string `yaml:"id"`
 	Model          string `yaml:"model"`
@@ -16,6 +19,7 @@ type DeviceConfig struct {
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
+// Config holds the global exporter configuration.
 type Config struct {
 	ListenAddr                  string         `yaml:"listen_addr"`
 	ListenPort                  int            `yaml:"listen_port"`
@@ -25,8 +29,9 @@ type Config struct {
 	Devices                     []DeviceConfig `yaml:"devices"`
 }
 
+// Load reads and validates the configuration from a YAML file.
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // config path is user-provided by design
 	if err != nil {
 		return nil, fmt.Errorf("reading config file %q: %w", path, err)
 	}
@@ -92,7 +97,7 @@ func (c *Config) validate() error {
 	}
 
 	if enabledCount == 0 {
-		return fmt.Errorf("at least one device must be enabled")
+		return errors.New("at least one device must be enabled")
 	}
 
 	return nil

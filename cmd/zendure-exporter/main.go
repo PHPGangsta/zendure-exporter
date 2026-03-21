@@ -1,3 +1,4 @@
+// Zendure-exporter is a Prometheus exporter for Zendure SolarFlow devices.
 package main
 
 import (
@@ -87,11 +88,11 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "OK")
 	})
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		if zendureCollector.Ready() {
 			w.WriteHeader(http.StatusOK)
 			_, _ = fmt.Fprintln(w, "READY")

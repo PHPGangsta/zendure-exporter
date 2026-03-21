@@ -633,7 +633,7 @@ func TestFetchDevice_Success(t *testing.T) {
 }
 
 func TestFetchDevice_HTTP500(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, "internal error")
 	}))
@@ -647,7 +647,7 @@ func TestFetchDevice_HTTP500(t *testing.T) {
 }
 
 func TestFetchDevice_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, "not json at all")
 	}))
 	defer server.Close()

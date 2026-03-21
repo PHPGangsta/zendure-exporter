@@ -62,15 +62,15 @@ func devicePayload() map[string]any {
 }
 
 func newTestServer(payload map[string]any) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(payload)
 	}))
 }
 
-func newErrorServer(statusCode int) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(statusCode)
+func newErrorServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintln(w, "error")
 	}))
 }
@@ -186,7 +186,7 @@ func TestCollector_ScrapeSuccessOnSuccess(t *testing.T) {
 }
 
 func TestCollector_ScrapeSuccessOnFailure(t *testing.T) {
-	srv := newErrorServer(500)
+	srv := newErrorServer()
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
@@ -201,7 +201,7 @@ func TestCollector_ScrapeSuccessOnFailure(t *testing.T) {
 }
 
 func TestCollector_NoDeviceMetricsOnFailure(t *testing.T) {
-	srv := newErrorServer(500)
+	srv := newErrorServer()
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
@@ -254,7 +254,7 @@ func TestCollector_LastSuccessTimestamp(t *testing.T) {
 }
 
 func TestCollector_NoLastSuccessOnFailure(t *testing.T) {
-	srv := newErrorServer(500)
+	srv := newErrorServer()
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)
@@ -274,7 +274,7 @@ func TestCollector_MultiDevice_OneFailsOtherSucceeds(t *testing.T) {
 	goodSrv := newTestServer(devicePayload())
 	defer goodSrv.Close()
 
-	badSrv := newErrorServer(500)
+	badSrv := newErrorServer()
 	defer badSrv.Close()
 
 	cfg := &config.Config{
@@ -395,7 +395,7 @@ func TestCollector_DiscoveryModeOff(t *testing.T) {
 }
 
 func TestCollector_ErrorCounterIncrements(t *testing.T) {
-	srv := newErrorServer(500)
+	srv := newErrorServer()
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)

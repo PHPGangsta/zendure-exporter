@@ -21,7 +21,7 @@ import (
 // --- Mock server helpers ---
 
 func newDelayedServer(delay time.Duration, payload map[string]any) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(delay)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(payload)
@@ -29,14 +29,14 @@ func newDelayedServer(delay time.Duration, payload map[string]any) *httptest.Ser
 }
 
 func newMalformedJSONServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"solarInputPower": 100, INVALID`)
 	}))
 }
 
 func newPartialPayloadServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"electricLevel": 42}`)
 	}))
@@ -50,7 +50,7 @@ func scrapeMetricsHTTP(t *testing.T, col *Collector) string {
 
 	handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil) //nolint:noctx // test helper, no real context needed
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -255,7 +255,7 @@ func TestIntegration_SelfMetrics_AllPresent(t *testing.T) {
 }
 
 func TestIntegration_SelfMetrics_OnError(t *testing.T) {
-	srv := newErrorServer(500)
+	srv := newErrorServer()
 	defer srv.Close()
 
 	cfg := newTestConfig(srv.URL)

@@ -33,7 +33,7 @@ func writeConfigFile(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	return path
@@ -47,7 +47,7 @@ devices:
     base_url: http://10.0.0.1
     enabled: true
 `)
-	cmd := exec.Command(bin, "--config", cfgPath, "--check-config")
+	cmd := exec.Command(bin, "--config", cfgPath, "--check-config") //nolint:gosec,noctx // test binary path is controlled
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected exit 0, got error: %v\noutput: %s", err, out)
@@ -62,7 +62,7 @@ func TestCheckConfig_InvalidConfig_MissingDevices(t *testing.T) {
 	cfgPath := writeConfigFile(t, `
 listen_port: 9854
 `)
-	cmd := exec.Command(bin, "--config", cfgPath, "--check-config")
+	cmd := exec.Command(bin, "--config", cfgPath, "--check-config") //nolint:gosec,noctx // test binary path is controlled
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatal("expected non-zero exit for missing devices")
@@ -81,7 +81,7 @@ devices:
     base_url: http://10.0.0.1
     enabled: true
 `)
-	cmd := exec.Command(bin, "--config", cfgPath, "--check-config")
+	cmd := exec.Command(bin, "--config", cfgPath, "--check-config") //nolint:gosec,noctx // test binary path is controlled
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatal("expected non-zero exit for invalid port")
@@ -93,7 +93,7 @@ devices:
 
 func TestCheckConfig_MissingFile(t *testing.T) {
 	bin := binaryPath(t)
-	cmd := exec.Command(bin, "--config", "/nonexistent/config.yml", "--check-config")
+	cmd := exec.Command(bin, "--config", "/nonexistent/config.yml", "--check-config") //nolint:gosec,noctx // test binary path is controlled
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatal("expected non-zero exit for missing config file")
@@ -123,7 +123,7 @@ devices:
     base_url: http://10.0.0.12
     enabled: false
 `)
-	cmd := exec.Command(bin, "--config", cfgPath, "--check-config")
+	cmd := exec.Command(bin, "--config", cfgPath, "--check-config") //nolint:gosec,noctx // test binary path is controlled
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected exit 0 for valid multi-device config, got error: %v\noutput: %s", err, out)

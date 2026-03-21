@@ -1,3 +1,4 @@
+// Package collector implements a Prometheus collector for Zendure device metrics.
 package collector
 
 import (
