@@ -234,12 +234,18 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		c.buildInfo, prometheus.GaugeValue, 1, c.version,
 	)
 
+	var wg sync.WaitGroup
 	for _, dev := range c.cfg.Devices {
 		if !dev.Enabled {
 			continue
 		}
-		c.collectDevice(ch, dev)
+		wg.Add(1)
+		go func(d config.DeviceConfig) {
+			defer wg.Done()
+			c.collectDevice(ch, d)
+		}(dev)
 	}
+	wg.Wait()
 
 	ch <- prometheus.MustNewConstMetric(
 		c.scrapeDuration, prometheus.GaugeValue, time.Since(start).Seconds(),
