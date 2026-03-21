@@ -63,7 +63,19 @@ docker compose up -d
 docker compose logs -f
 ```
 
-### Using Docker directly
+### Using a pre-built Docker image
+
+Multi-arch images (amd64, arm64, arm/v7) are published to GitHub Container Registry on every release:
+
+```bash
+docker run -d \
+  --name zendure-exporter \
+  -p 9854:9854 \
+  -v $(pwd)/config.yml:/etc/zendure-exporter/config.yml:ro \
+  ghcr.io/phpgangsta/zendure-exporter:latest
+```
+
+### Using Docker directly (build from source)
 
 ```bash
 # Build
@@ -107,6 +119,7 @@ devices:
     model: SolarFlow2400 AC
     base_url: http://192.168.1.102
     enabled: true
+    timeout_seconds: 10  # optional per-device timeout override
 ```
 
 ### Global Settings
@@ -125,8 +138,9 @@ devices:
 |-------|------|----------|-------------|
 | `id` | string | **yes** | Unique device identifier (used as `device_id` label) |
 | `model` | string | no | Device model name (used as `device_model` label, e.g. `SolarFlow800 Pro`) |
-| `base_url` | string | **yes** | Base URL of the device (e.g. `http://192.168.1.101`). The exporter appends `/properties/report` |
+| `base_url` | string | **yes** | Base URL of the device (must use `http` or `https` scheme, e.g. `http://192.168.1.101`). The exporter appends `/properties/report` |
 | `enabled` | bool | no | Set to `false` to skip this device. At least one device must be enabled |
+| `timeout_seconds` | int | no | Per-device HTTP timeout override (≥ 1). Falls back to global `device_request_timeout_seconds` if unset |
 
 ### Validate Config
 
@@ -150,6 +164,7 @@ The version is typically "dev" when built locally without flags, or set to the G
 |------------|-----------------------------|
 | `/metrics` | Prometheus metrics endpoint |
 | `/health`  | Health check (returns `OK`) |
+| `/ready`   | Readiness probe — returns `200 READY` after at least one successful device scrape, `503 NOT READY` otherwise. Useful for Kubernetes readiness probes |
 
 ## Grafana Dashboard
 
@@ -211,8 +226,10 @@ Enable `debug: true` in config to log the raw JSON payload from each device on e
 Run `zendure-exporter --check-config --config config.yml` to validate the config without starting the exporter. Common issues:
 
 - Missing `id` or `base_url` on a device
+- `base_url` without `http` or `https` scheme
 - `listen_port` outside range 1–65535
 - `device_request_timeout_seconds` less than 1
+- Negative `timeout_seconds` on a device
 - No enabled devices
 
 ### High scrape duration
@@ -220,8 +237,9 @@ Run `zendure-exporter --check-config --config config.yml` to validate the config
 If `zendure_exporter_scrape_duration_seconds` is consistently high, check:
 
 - Network latency to the devices
-- Number of configured devices (requests are sequential)
+- Number of configured devices (requests run in parallel, but the slowest device determines total scrape time)
 - `device_request_timeout_seconds` — a timed-out device adds its full timeout to scrape duration
+- Check `zendure_exporter_device_fetch_duration_seconds` to identify which device is slowest
 
 ## Prometheus Integration
 

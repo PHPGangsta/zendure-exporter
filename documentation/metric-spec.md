@@ -199,6 +199,7 @@ All battery pack metrics carry the additional `pack_sn` label.
 | Prometheus Metric                              | Type    | Labels                        | Description                              |
 |------------------------------------------------|---------|-------------------------------|------------------------------------------|
 | `zendure_exporter_scrape_duration_seconds`     | gauge   | —                             | Total duration of last scrape            |
+| `zendure_exporter_device_fetch_duration_seconds` | gauge | `device_id`, `device_model`   | Duration of HTTP fetch per device        |
 | `zendure_exporter_scrape_success`              | gauge   | `device_id`, `device_model`   | 1 if last scrape succeeded, 0 otherwise  |
 | `zendure_exporter_upstream_request_errors_total`| counter | `device_id`, `device_model`  | Total upstream request errors            |
 | `zendure_last_success_timestamp_seconds`       | gauge   | `device_id`, `device_model`   | Unix timestamp of last successful scrape |
