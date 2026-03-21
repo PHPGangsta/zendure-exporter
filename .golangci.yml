@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - misspell
+
+linters-settings:
+  gocritic:
+    disabled-checks:
+      - exitAfterDefer
+      - elseif
+      - hugeParam
+
+issues:
+  exclude-dirs:
+    - vendor

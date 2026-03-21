@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 func testLogger() *slog.Logger {

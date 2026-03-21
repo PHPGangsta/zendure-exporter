@@ -1,4 +1,4 @@
-module zendure-exporter
+module github.com/PHPGangsta/zendure-exporter
 
 go 1.23.0
 

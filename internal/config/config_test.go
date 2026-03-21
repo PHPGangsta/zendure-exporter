@@ -279,3 +279,79 @@ devices:
 		t.Fatalf("port 65535 should be valid: %v", err)
 	}
 }
+
+func TestLoad_InvalidBaseURL_NoScheme(t *testing.T) {
+	path := writeTestConfig(t, `
+devices:
+  - id: dev1
+    base_url: 192.168.1.1
+    enabled: true
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for base_url without scheme")
+	}
+}
+
+func TestLoad_InvalidBaseURL_FTPScheme(t *testing.T) {
+	path := writeTestConfig(t, `
+devices:
+  - id: dev1
+    base_url: ftp://192.168.1.1
+    enabled: true
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for ftp scheme")
+	}
+}
+
+func TestLoad_ValidBaseURL_HTTPS(t *testing.T) {
+	path := writeTestConfig(t, `
+devices:
+  - id: dev1
+    base_url: https://192.168.1.1
+    enabled: true
+`)
+	if _, err := Load(path); err != nil {
+		t.Fatalf("https base_url should be valid: %v", err)
+	}
+}
+
+func TestLoad_PerDeviceTimeout(t *testing.T) {
+	path := writeTestConfig(t, `
+device_request_timeout_seconds: 5
+devices:
+  - id: dev1
+    base_url: http://10.0.0.1
+    enabled: true
+    timeout_seconds: 10
+  - id: dev2
+    base_url: http://10.0.0.2
+    enabled: true
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EffectiveTimeout(cfg.Devices[0]) != 10 {
+		t.Errorf("expected per-device timeout 10, got %d", cfg.EffectiveTimeout(cfg.Devices[0]))
+	}
+	if cfg.EffectiveTimeout(cfg.Devices[1]) != 5 {
+		t.Errorf("expected global timeout 5, got %d", cfg.EffectiveTimeout(cfg.Devices[1]))
+	}
+}
+
+func TestLoad_NegativeDeviceTimeout(t *testing.T) {
+	path := writeTestConfig(t, `
+devices:
+  - id: dev1
+    base_url: http://10.0.0.1
+    enabled: true
+    timeout_seconds: -1
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for negative device timeout")
+	}
+}

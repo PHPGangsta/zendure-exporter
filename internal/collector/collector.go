@@ -7,8 +7,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"zendure-exporter/internal/client"
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/client"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 var deviceLabels = []string{"device_id", "device_model"}
@@ -41,12 +41,14 @@ type Collector struct {
 	upstreamErrors     *prometheus.Desc
 	lastSuccessTS      *prometheus.Desc
 	unknownFieldsTotal *prometheus.Desc
+	fetchDuration      *prometheus.Desc
 
 	// Mutable state for counters (persisted across scrapes).
 	mu                  sync.Mutex
 	upstreamErrorCounts map[string]float64 // key: device_id
 	unknownFieldCounts  map[string]float64 // key: device_id
 	lastSuccessTimes    map[string]float64 // key: device_id
+	hasSucceeded        bool               // true after at least one successful scrape
 }
 
 // New creates a new Collector instance.
@@ -201,6 +203,18 @@ func (c *Collector) registerSelfMetrics() {
 		"Total count of unknown fields seen per device (discovery mode)",
 		deviceLabels, nil,
 	)
+	c.fetchDuration = prometheus.NewDesc(
+		"zendure_exporter_device_fetch_duration_seconds",
+		"Duration of HTTP fetch per device in seconds",
+		deviceLabels, nil,
+	)
+}
+
+// Ready returns true after at least one successful device scrape.
+func (c *Collector) Ready() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.hasSucceeded
 }
 
 // Describe implements prometheus.Collector.
@@ -224,6 +238,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.upstreamErrors
 	ch <- c.lastSuccessTS
 	ch <- c.unknownFieldsTotal
+	ch <- c.fetchDuration
 }
 
 // Collect implements prometheus.Collector. It fetches device data on every scrape.
@@ -255,7 +270,12 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.DeviceConfig) {
 	labels := []string{dev.ID, dev.Model}
 
+	fetchStart := time.Now()
 	data, err := c.client.FetchDevice(dev)
+	fetchDuration := time.Since(fetchStart).Seconds()
+
+	ch <- prometheus.MustNewConstMetric(c.fetchDuration, prometheus.GaugeValue, fetchDuration, labels...)
+
 	if err != nil {
 		c.logger.Error("device fetch failed",
 			"device_id", dev.ID, "base_url", dev.BaseURL, "err", err)
@@ -312,6 +332,7 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 	// Record success.
 	c.mu.Lock()
 	c.lastSuccessTimes[dev.ID] = float64(time.Now().Unix())
+	c.hasSucceeded = true
 	c.mu.Unlock()
 
 	ch <- prometheus.MustNewConstMetric(c.scrapeSuccess, prometheus.GaugeValue, 1, labels...)

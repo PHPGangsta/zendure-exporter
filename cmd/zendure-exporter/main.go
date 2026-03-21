@@ -16,8 +16,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"zendure-exporter/internal/collector"
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/collector"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 var version = "dev"
@@ -91,6 +91,15 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "OK")
 	})
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		if zendureCollector.Ready() {
+			w.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprintln(w, "READY")
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = fmt.Fprintln(w, "NOT READY")
+		}
+	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.ListenAddr, cfg.ListenPort)
 	server := &http.Server{
@@ -121,7 +130,6 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown error", "err", err)
-		os.Exit(1)
 	}
 
 	logger.Info("shutdown complete")

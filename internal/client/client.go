@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 // DeviceData holds the parsed and converted metrics from a single device scrape.
@@ -41,19 +41,15 @@ type BatteryPackData struct {
 
 // Client fetches and parses metrics from Zendure device HTTP APIs.
 type Client struct {
-	httpClient *http.Client
-	logger     *slog.Logger
-	discovery  bool
+	cfg    *config.Config
+	logger *slog.Logger
 }
 
-// New creates a new Client with the given timeout and discovery mode setting.
+// New creates a new Client with the given config and logger.
 func New(cfg *config.Config, logger *slog.Logger) *Client {
 	return &Client{
-		httpClient: &http.Client{
-			Timeout: time.Duration(cfg.DeviceRequestTimeoutSeconds) * time.Second,
-		},
-		logger:    logger,
-		discovery: cfg.DiscoveryMode,
+		cfg:    cfg,
+		logger: logger,
 	}
 }
 
@@ -62,7 +58,11 @@ func New(cfg *config.Config, logger *slog.Logger) *Client {
 func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 	url := strings.TrimRight(dev.BaseURL, "/") + "/properties/report"
 
-	resp, err := c.httpClient.Get(url)
+	httpClient := &http.Client{
+		Timeout: time.Duration(c.cfg.EffectiveTimeout(dev)) * time.Second,
+	}
+
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request to %s: %w", url, err)
 	}
@@ -200,7 +200,7 @@ func (c *Client) parsePayload(dev config.DeviceConfig, body []byte) (*DeviceData
 			continue
 		}
 		if f, err := toFloat64(val); err == nil {
-			if c.discovery {
+			if c.cfg.DiscoveryMode {
 				sanitized := sanitizeFieldName(field)
 				data.UnknownFields[sanitized] = f
 				c.logger.Info("discovery: unknown numeric field",
@@ -420,11 +420,9 @@ func sanitizeFieldName(name string) string {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
 			prevUnderscore = false
-		} else {
-			if !prevUnderscore {
-				b.WriteRune('_')
-				prevUnderscore = true
-			}
+		} else if !prevUnderscore {
+			b.WriteRune('_')
+			prevUnderscore = true
 		}
 	}
 	return strings.Trim(b.String(), "_")

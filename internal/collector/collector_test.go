@@ -12,8 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus "github.com/prometheus/client_model/go"
 
-	"zendure-exporter/internal/client"
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/client"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 func testLogger() *slog.Logger {

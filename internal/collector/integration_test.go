@@ -14,8 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"zendure-exporter/internal/client"
-	"zendure-exporter/internal/config"
+	"github.com/PHPGangsta/zendure-exporter/internal/client"
+	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
 
 // --- Mock server helpers ---

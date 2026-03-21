@@ -2,16 +2,18 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 type DeviceConfig struct {
-	ID      string `yaml:"id"`
-	Model   string `yaml:"model"`
-	BaseURL string `yaml:"base_url"`
-	Enabled bool   `yaml:"enabled"`
+	ID             string `yaml:"id"`
+	Model          string `yaml:"model"`
+	BaseURL        string `yaml:"base_url"`
+	Enabled        bool   `yaml:"enabled"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
 type Config struct {
@@ -46,6 +48,14 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// EffectiveTimeout returns the per-device timeout if set, otherwise the global timeout.
+func (c *Config) EffectiveTimeout(dev DeviceConfig) int {
+	if dev.TimeoutSeconds > 0 {
+		return dev.TimeoutSeconds
+	}
+	return c.DeviceRequestTimeoutSeconds
+}
+
 func (c *Config) validate() error {
 	if c.ListenPort < 1 || c.ListenPort > 65535 {
 		return fmt.Errorf("listen_port must be between 1 and 65535, got %d", c.ListenPort)
@@ -62,6 +72,19 @@ func (c *Config) validate() error {
 		}
 		if d.BaseURL == "" {
 			return fmt.Errorf("devices[%d] (%s): base_url is required", i, d.ID)
+		}
+		u, err := url.Parse(d.BaseURL)
+		if err != nil {
+			return fmt.Errorf("devices[%d] (%s): invalid base_url %q: %w", i, d.ID, d.BaseURL, err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("devices[%d] (%s): base_url must use http or https scheme, got %q", i, d.ID, u.Scheme)
+		}
+		if u.Host == "" {
+			return fmt.Errorf("devices[%d] (%s): base_url must include a host", i, d.ID)
+		}
+		if d.TimeoutSeconds < 0 {
+			return fmt.Errorf("devices[%d] (%s): timeout_seconds must be >= 0, got %d", i, d.ID, d.TimeoutSeconds)
 		}
 		if d.Enabled {
 			enabledCount++
