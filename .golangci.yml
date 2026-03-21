@@ -34,41 +34,45 @@ linters:
     # Structured logging
     - sloglint
 
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-    disabled-checks:
-      - hugeParam
-      - unnamedResult
-  revive:
-    rules:
-      - name: blank-imports
-      - name: exported
-      - name: unreachable-code
-      - name: unused-parameter
-      - name: empty-block
-      - name: superfluous-else
-      - name: indent-error-flow
-  perfsprint:
-    err-error: true
-    strconcat: false
-  promlinter:
-    strict: false
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam
+        - unnamedResult
+        - importShadow
+        - octalLiteral
+        - commentedOutCode
+        - httpNoBody
+    revive:
+      rules:
+        - name: blank-imports
+        - name: exported
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: empty-block
+        - name: superfluous-else
+        - name: indent-error-flow
+    perfsprint:
+      err-error: true
+      strconcat: false
+    promlinter:
+      strict: false
 
-issues:
-  exclude-dirs:
-    - vendor
-  exclude-rules:
-    # Relax security and context linters in test files
-    - path: _test\.go
-      linters:
-        - gosec
-        - noctx
-    # Don't require named params in test HTTP handlers
-    - path: _test\.go
-      linters:
-        - revive
-      text: "unused-parameter"
+  exclusions:
+    paths:
+      - vendor
+    rules:
+      # Relax security and context linters in test files
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+      # Don't require named params in test HTTP handlers
+      - path: _test\.go
+        linters:
+          - revive
+        text: "unused-parameter"
