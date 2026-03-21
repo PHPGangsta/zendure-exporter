@@ -7,6 +7,12 @@ services:
       - "9854:9854"
     volumes:
       - ./config.yml:/etc/zendure-exporter/config.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9854/ready"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     # Use host network if Zendure devices are on the local LAN
     # and not reachable from the default Docker bridge network:
     # network_mode: host
