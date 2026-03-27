@@ -2327,8 +2327,8 @@
           },
           "targets": [
             {
-              "expr": "zendure_exporter_upstream_request_errors_total",
-              "legendFormat": "Errors Total",
+              "expr": "zendure_exporter_upstream_request_errors_total{device_id=~\"$device\"}",
+              "legendFormat": "{{device_id}} ({{error_type}})",
               "refId": "A"
             },
             {
@@ -2393,8 +2393,8 @@
           },
           "targets": [
             {
-              "expr": "rate(zendure_exporter_upstream_request_errors_total[5m])",
-              "legendFormat": "Errors/s",
+              "expr": "rate(zendure_exporter_upstream_request_errors_total{device_id=~\"$device\"}[5m])",
+              "legendFormat": "{{device_id}} ({{error_type}})",
               "refId": "A"
             },
             {
