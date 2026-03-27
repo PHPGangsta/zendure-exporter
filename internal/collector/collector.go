@@ -4,6 +4,7 @@ package collector
 import (
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,6 +71,11 @@ type Collector struct {
 	// Per-device circuit-breaker state.
 	consecutiveFailures map[string]int       // key: device_id
 	circuitOpenUntil    map[string]time.Time // key: device_id; zero value = closed
+
+	// Monotonic counter incremented on every Collect call.
+	// The value is attached to the scrape-scoped logger as "scrape_id" so that
+	// all log lines from a single scrape cycle share the same identifier.
+	scrapeCounter atomic.Uint64
 }
 
 // New creates a new Collector instance.
@@ -275,6 +281,11 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 
+	// Attach a monotonically-increasing scrape_id to every log line produced
+	// during this scrape cycle so concurrent device goroutines can be correlated.
+	scrapeID := c.scrapeCounter.Add(1)
+	logger := c.logger.With("scrape_id", scrapeID)
+
 	ch <- prometheus.MustNewConstMetric(
 		c.buildInfo, prometheus.GaugeValue, 1, c.version,
 	)
@@ -287,7 +298,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		wg.Add(1)
 		go func(d config.DeviceConfig) {
 			defer wg.Done()
-			c.collectDevice(ch, d)
+			c.collectDevice(ch, d, logger)
 		}(dev)
 	}
 	wg.Wait()
@@ -315,7 +326,7 @@ func (c *Collector) isCircuitOpen(deviceID string) bool {
 	return false
 }
 
-func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.DeviceConfig) {
+func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.DeviceConfig, logger *slog.Logger) {
 	labels := []string{dev.ID, dev.Model}
 
 	c.mu.Lock()
@@ -323,7 +334,7 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 	c.mu.Unlock()
 
 	if circuitOpen {
-		c.logger.Warn("circuit open, skipping device fetch",
+		logger.Warn("circuit open, skipping device fetch",
 			"device_id", dev.ID, "base_url", dev.BaseURL)
 		ch <- prometheus.MustNewConstMetric(c.scrapeSuccess, prometheus.GaugeValue, 0, labels...)
 		ch <- prometheus.MustNewConstMetric(c.circuitBreakerOpen, prometheus.GaugeValue, 1, labels...)
@@ -338,7 +349,7 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 	ch <- prometheus.MustNewConstMetric(c.fetchDuration, prometheus.GaugeValue, fetchDuration, labels...)
 
 	if err != nil {
-		c.logger.Error("device fetch failed",
+		logger.Error("device fetch failed",
 			"device_id", dev.ID, "base_url", dev.BaseURL, "err", err)
 
 		c.mu.Lock()
@@ -346,7 +357,7 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 		c.consecutiveFailures[dev.ID]++
 		if c.consecutiveFailures[dev.ID] >= circuitBreakerThreshold {
 			c.circuitOpenUntil[dev.ID] = time.Now().Add(circuitBreakerBackoff)
-			c.logger.Warn("circuit breaker opened",
+			logger.Warn("circuit breaker opened",
 				"device_id", dev.ID,
 				"consecutive_failures", c.consecutiveFailures[dev.ID],
 				"backoff_seconds", int(circuitBreakerBackoff.Seconds()))
