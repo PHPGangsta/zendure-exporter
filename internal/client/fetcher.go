@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -22,29 +21,34 @@ func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("creating request for %s: %w", url, err)
+		// NewRequestWithContext only fails for malformed URLs, which config validation prevents.
+		return nil, &ErrUnreachable{URL: url, Err: err}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request to %s: %w", url, err)
+		return nil, &ErrUnreachable{URL: url, Err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		if err != nil {
-			return nil, fmt.Errorf("HTTP %d from %s (failed to read body: %w)", resp.StatusCode, url, err)
+		rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if readErr != nil {
+			return nil, &ErrHTTPError{URL: url, Status: resp.StatusCode}
 		}
-		return nil, fmt.Errorf("HTTP %d from %s: %s", resp.StatusCode, url, string(body))
+		return nil, &ErrHTTPError{URL: url, Status: resp.StatusCode, Body: strings.TrimSpace(string(rawBody))}
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response body from %s: %w", url, err)
+		return nil, &ErrUnreachable{URL: url, Err: err}
 	}
 
 	c.logger.Debug("raw payload", "device_id", dev.ID, "body", string(body))
 
-	return c.parsePayload(dev, body)
+	data, err := c.parsePayload(dev, body)
+	if err != nil {
+		return nil, &ErrParse{DeviceID: dev.ID, Err: err}
+	}
+	return data, nil
 }

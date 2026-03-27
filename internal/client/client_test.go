@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -653,6 +654,58 @@ func TestParsePayload_IgnoredFieldsNotInMetrics(t *testing.T) {
 	}
 	if len(data.UnknownFields) != 0 {
 		t.Errorf("ignored fields should not appear in discovery, got %d", len(data.UnknownFields))
+	}
+}
+
+// --- Typed error tests ---
+
+func TestFetchDevice_ReturnsErrUnreachable_OnConnectionRefused(t *testing.T) {
+	c := New(testConfig("http://127.0.0.1:1", false), testLogger())
+	_, err := c.FetchDevice(testDevice("http://127.0.0.1:1"))
+
+	var target *ErrUnreachable
+	if !errors.As(err, &target) {
+		t.Errorf("expected *ErrUnreachable, got %T: %v", err, err)
+	}
+}
+
+func TestFetchDevice_ReturnsErrHTTPError_On500(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprint(w, "server error")
+	}))
+	defer srv.Close()
+
+	c := New(testConfig(srv.URL, false), testLogger())
+	_, err := c.FetchDevice(testDevice(srv.URL))
+
+	var target *ErrHTTPError
+	if !errors.As(err, &target) {
+		t.Errorf("expected *ErrHTTPError, got %T: %v", err, err)
+	}
+	if target.Status != http.StatusInternalServerError {
+		t.Errorf("Status = %d, want %d", target.Status, http.StatusInternalServerError)
+	}
+	if target.Body != "server error" {
+		t.Errorf("Body = %q, want %q", target.Body, "server error")
+	}
+}
+
+func TestFetchDevice_ReturnsErrParse_OnMalformedJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `not json`)
+	}))
+	defer srv.Close()
+
+	c := New(testConfig(srv.URL, false), testLogger())
+	_, err := c.FetchDevice(testDevice(srv.URL))
+
+	var target *ErrParse
+	if !errors.As(err, &target) {
+		t.Errorf("expected *ErrParse, got %T: %v", err, err)
+	}
+	if target.DeviceID != "test_device" {
+		t.Errorf("DeviceID = %q, want %q", target.DeviceID, "test_device")
 	}
 }
 

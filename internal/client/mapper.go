@@ -90,7 +90,7 @@ var ignoredFields = []string{
 func (c *Client) parsePayload(dev config.DeviceConfig, body []byte) (*DeviceData, error) {
 	var raw map[string]any
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("parsing JSON from device %s: %w", dev.ID, err)
+		return nil, fmt.Errorf("parsing JSON: %w", err)
 	}
 
 	// Some firmware versions wrap device properties in a top-level "properties" object.
