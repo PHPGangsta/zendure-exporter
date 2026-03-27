@@ -1,5 +1,6 @@
-# compiled binary
+# compiled binaries
 /zendure-exporter
+/bin/
 
 # IDE
 .idea/
