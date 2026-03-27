@@ -1,4 +1,3 @@
-// Package client fetches and parses metrics from Zendure device HTTP APIs.
 package client
 
 import (

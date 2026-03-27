@@ -1,4 +1,3 @@
-// Package config handles loading and validation of the exporter configuration.
 package config
 
 import (
