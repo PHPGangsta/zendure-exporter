@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -62,10 +63,10 @@ type Collector struct {
 
 	// Mutable state for counters (persisted across scrapes).
 	mu                  sync.Mutex
-	upstreamErrorCounts map[string]float64 // key: device_id
-	unknownFieldCounts  map[string]float64 // key: device_id
-	lastSuccessTimes    map[string]float64 // key: device_id
-	hasSucceeded        bool               // true after at least one successful scrape
+	upstreamErrorCounts map[string]map[string]float64 // device_id -> error_type -> count
+	unknownFieldCounts  map[string]float64             // key: device_id
+	lastSuccessTimes    map[string]float64             // key: device_id
+	hasSucceeded        bool                           // true after at least one successful scrape
 
 	// Per-device circuit-breaker state.
 	consecutiveFailures map[string]int       // key: device_id
@@ -89,7 +90,7 @@ func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 		channelMetrics: make(map[string]*prometheus.Desc),
 		packMetrics:    make(map[string]*prometheus.Desc),
 
-		upstreamErrorCounts: make(map[string]float64),
+		upstreamErrorCounts: make(map[string]map[string]float64),
 		unknownFieldCounts:  make(map[string]float64),
 		lastSuccessTimes:    make(map[string]float64),
 		consecutiveFailures: make(map[string]int),
@@ -219,8 +220,8 @@ func (c *Collector) registerSelfMetrics() {
 	)
 	c.upstreamErrors = prometheus.NewDesc(
 		"zendure_exporter_upstream_request_errors_total",
-		"Total upstream request errors per device",
-		deviceLabels, nil,
+		"Total upstream request errors per device, labelled by error_type (unreachable|http_error|parse_error)",
+		append(deviceLabels, "error_type"), nil,
 	)
 	c.lastSuccessTS = prometheus.NewDesc(
 		"zendure_last_success_timestamp_seconds",
@@ -307,6 +308,24 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	)
 }
 
+// errorTypeOf maps a FetchDevice error to a stable string label value.
+// The three values correspond to the typed errors in the client package.
+func errorTypeOf(err error) string {
+	var u *client.ErrUnreachable
+	var h *client.ErrHTTPError
+	var p *client.ErrParse
+	switch {
+	case errors.As(err, &u):
+		return "unreachable"
+	case errors.As(err, &h):
+		return "http_error"
+	case errors.As(err, &p):
+		return "parse_error"
+	default:
+		return "unknown"
+	}
+}
+
 // isCircuitOpen reports whether the circuit breaker for deviceID is open.
 // If the backoff window has expired, it resets the consecutive-failure counter
 // and closes the circuit so the next call gets a fresh attempt.
@@ -348,11 +367,15 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 	ch <- prometheus.MustNewConstMetric(c.fetchDuration, prometheus.GaugeValue, fetchDuration, labels...)
 
 	if err != nil {
+		errType := errorTypeOf(err)
 		logger.Error("device fetch failed",
-			"device_id", dev.ID, "base_url", dev.BaseURL, "err", err)
+			"device_id", dev.ID, "base_url", dev.BaseURL, "error_type", errType, "err", err)
 
 		c.mu.Lock()
-		c.upstreamErrorCounts[dev.ID]++
+		if c.upstreamErrorCounts[dev.ID] == nil {
+			c.upstreamErrorCounts[dev.ID] = make(map[string]float64)
+		}
+		c.upstreamErrorCounts[dev.ID][errType]++
 		c.consecutiveFailures[dev.ID]++
 		if c.consecutiveFailures[dev.ID] >= circuitBreakerThreshold {
 			c.circuitOpenUntil[dev.ID] = time.Now().Add(circuitBreakerBackoff)
@@ -425,12 +448,18 @@ func (c *Collector) emitCounters(ch chan<- prometheus.Metric, dev config.DeviceC
 	labels := []string{dev.ID, dev.Model}
 
 	c.mu.Lock()
-	errCount := c.upstreamErrorCounts[dev.ID]
+	errorCounts := c.upstreamErrorCounts[dev.ID]
 	unknownCount := c.unknownFieldCounts[dev.ID]
 	lastSuccess := c.lastSuccessTimes[dev.ID]
 	c.mu.Unlock()
 
-	ch <- prometheus.MustNewConstMetric(c.upstreamErrors, prometheus.CounterValue, errCount, labels...)
+	// Emit one error counter series per error type seen for this device.
+	for errType, count := range errorCounts {
+		ch <- prometheus.MustNewConstMetric(
+			c.upstreamErrors, prometheus.CounterValue, count,
+			dev.ID, dev.Model, errType,
+		)
+	}
 	ch <- prometheus.MustNewConstMetric(c.unknownFieldsTotal, prometheus.CounterValue, unknownCount, labels...)
 
 	if lastSuccess > 0 {

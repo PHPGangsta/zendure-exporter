@@ -240,7 +240,8 @@ func TestIntegration_SelfMetrics_AllPresent(t *testing.T) {
 		"zendure_exporter_build_info",
 		"zendure_exporter_scrape_duration_seconds",
 		"zendure_exporter_scrape_success",
-		"zendure_exporter_upstream_request_errors_total",
+		// zendure_exporter_upstream_request_errors_total is only emitted when
+		// errors actually occur — absent on a clean scrape is correct behaviour.
 		"zendure_last_success_timestamp_seconds",
 		"zendure_exporter_unknown_fields_total",
 	}
@@ -268,9 +269,10 @@ func TestIntegration_SelfMetrics_OnError(t *testing.T) {
 		t.Error("scrape_success should be 0 on error")
 	}
 
-	// Error counter should be 1.
-	if !strings.Contains(body, `zendure_exporter_upstream_request_errors_total{device_id="test_device",device_model="SolarFlow800 Pro"} 1`) {
-		t.Error("error counter should be 1")
+	// Error counter should be 1, with error_type label present.
+	// The error_type value is http_error because the test server returns 500.
+	if !strings.Contains(body, `zendure_exporter_upstream_request_errors_total{device_id="test_device",device_model="SolarFlow800 Pro",error_type="http_error"} 1`) {
+		t.Error("error counter should be 1 with error_type=http_error")
 	}
 
 	// Last success timestamp should NOT be present (never succeeded).
