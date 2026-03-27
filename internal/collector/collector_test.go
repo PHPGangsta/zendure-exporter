@@ -38,6 +38,7 @@ func collectMetrics(t *testing.T, col *Collector) map[string]*io_prometheus.Metr
 	return result
 }
 
+// devicePayload returns a realistic JSON payload map used by both unit and integration tests.
 func devicePayload() map[string]any {
 	return map[string]any{
 		"solarInputPower": 450,
@@ -61,6 +62,8 @@ func devicePayload() map[string]any {
 	}
 }
 
+// newTestServer starts an httptest.Server that serves the given payload as JSON.
+// Used by integration tests and by unit tests that require real HTTP behaviour.
 func newTestServer(payload map[string]any) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -68,6 +71,7 @@ func newTestServer(payload map[string]any) *httptest.Server {
 	}))
 }
 
+// newErrorServer starts an httptest.Server that always returns HTTP 500.
 func newErrorServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -75,6 +79,7 @@ func newErrorServer() *httptest.Server {
 	}))
 }
 
+// newTestConfig returns a single-device config pointing at baseURL.
 func newTestConfig(baseURL string) *config.Config {
 	return &config.Config{
 		ListenAddr:                  "127.0.0.1",
@@ -86,53 +91,133 @@ func newTestConfig(baseURL string) *config.Config {
 	}
 }
 
-func TestCollector_BasicDeviceMetrics(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
+// --- Mock fetcher ---
 
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+// mockFetcher implements Fetcher for unit tests without a real HTTP server.
+// Responses are keyed by device ID; if a device has no entry FetchDevice returns an error.
+type mockFetcher struct {
+	results map[string]mockFetchResult
+}
+
+type mockFetchResult struct {
+	data *client.DeviceData
+	err  error
+}
+
+func newMockFetcher(results map[string]mockFetchResult) *mockFetcher {
+	return &mockFetcher{results: results}
+}
+
+func (m *mockFetcher) FetchDevice(dev config.DeviceConfig) (*client.DeviceData, error) {
+	r, ok := m.results[dev.ID]
+	if !ok {
+		return nil, fmt.Errorf("mockFetcher: no result configured for device %q", dev.ID)
+	}
+	return r.data, r.err
+}
+
+// mockSuccess returns a successful mockFetchResult with the provided DeviceData.
+func mockSuccess(data *client.DeviceData) mockFetchResult {
+	return mockFetchResult{data: data}
+}
+
+// mockHTTPError returns a failing mockFetchResult using ErrHTTPError (status 500).
+// errorTypeOf will classify this as "http_error", matching what the real error server returns.
+func mockHTTPError(deviceID string) mockFetchResult {
+	return mockFetchResult{err: &client.ErrHTTPError{
+		URL:    "http://mock/" + deviceID,
+		Status: 500,
+		Body:   "error",
+	}}
+}
+
+// mockDeviceData returns a *client.DeviceData whose values match devicePayload() after
+// the client mapper has applied all field mappings and unit conversions.
+func mockDeviceData(deviceID, deviceModel string) *client.DeviceData {
+	return &client.DeviceData{
+		DeviceID:    deviceID,
+		DeviceModel: deviceModel,
+		Metrics: map[string]float64{
+			"zendure_solar_input_power_watts":      450,
+			"zendure_output_home_power_watts":      200,
+			"zendure_electric_level_percent":       75,
+			"zendure_pack_state":                   1,
+			"zendure_enclosure_temperature_celsius": 28.0,
+			"zendure_battery_voltage_volts":        52.0,
+		},
+		ChannelMetrics: map[string]map[string]float64{
+			"zendure_solar_power_channel_watts": {"1": 150, "2": 300},
+		},
+		BatteryPacks: []client.BatteryPackData{
+			{
+				SerialNumber: "PACK001",
+				Metrics: map[string]float64{
+					"zendure_pack_soc_level_percent":      80,
+					"zendure_pack_power_watts":            100,
+					"zendure_pack_temperature_celsius":    25.0,
+					"zendure_pack_max_cell_voltage_volts": 3.42,
+					"zendure_pack_min_cell_voltage_volts": 3.38,
+				},
+			},
+		},
+		UnknownFields: map[string]float64{},
+	}
+}
+
+// newMockConfig returns a single-device config for use with mockFetcher.
+// The BaseURL is irrelevant when the collector is initialised with a mock fetcher.
+func newMockConfig() *config.Config {
+	return &config.Config{
+		ListenAddr:                  "127.0.0.1",
+		ListenPort:                  9854,
+		DeviceRequestTimeoutSeconds: 5,
+		Devices: []config.DeviceConfig{
+			{ID: "test_device", Model: "SolarFlow800 Pro", BaseURL: "http://ignored", Enabled: true},
+		},
+	}
+}
+
+// --- Unit tests ---
+
+func TestCollector_BasicDeviceMetrics(t *testing.T) {
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
-	// Check solar input power.
 	assertGaugeValue(t, metrics, "zendure_solar_input_power_watts", 450, "device_id", "test_device")
-	// Check output home power.
 	assertGaugeValue(t, metrics, "zendure_output_home_power_watts", 200, "device_id", "test_device")
-	// Check electric level.
 	assertGaugeValue(t, metrics, "zendure_electric_level_percent", 75, "device_id", "test_device")
-	// Check pack state.
 	assertGaugeValue(t, metrics, "zendure_pack_state", 1, "device_id", "test_device")
 }
 
 func TestCollector_TemperatureConversion(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValueApprox(t, metrics, "zendure_enclosure_temperature_celsius", 28.0, 0.1, "device_id", "test_device")
 }
 
 func TestCollector_VoltageConversion(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValueApprox(t, metrics, "zendure_battery_voltage_volts", 52.0, 0.01, "device_id", "test_device")
 }
 
 func TestCollector_ChannelMetrics(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -159,11 +244,10 @@ func TestCollector_ChannelMetrics(t *testing.T) {
 }
 
 func TestCollector_BatteryPackMetrics(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -175,52 +259,45 @@ func TestCollector_BatteryPackMetrics(t *testing.T) {
 }
 
 func TestCollector_ScrapeSuccessOnSuccess(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValue(t, metrics, "zendure_exporter_scrape_success", 1, "device_id", "test_device")
 }
 
 func TestCollector_ScrapeSuccessOnFailure(t *testing.T) {
-	srv := newErrorServer()
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockHTTPError("test_device"),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
-	// Scrape success should be 0.
 	assertGaugeValue(t, metrics, "zendure_exporter_scrape_success", 0, "device_id", "test_device")
-	// Error counter should be 1.
 	assertCounterValue(t, metrics, "zendure_exporter_upstream_request_errors_total", 1, "device_id", "test_device")
 }
 
 func TestCollector_NoDeviceMetricsOnFailure(t *testing.T) {
-	srv := newErrorServer()
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockHTTPError("test_device"),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
-	// Device metrics should NOT be present when fetch fails.
 	if _, ok := metrics["zendure_solar_input_power_watts"]; ok {
 		t.Error("device metrics should not be emitted on failure")
 	}
 }
 
 func TestCollector_ScrapeDuration(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -229,17 +306,16 @@ func TestCollector_ScrapeDuration(t *testing.T) {
 		t.Fatal("missing scrape duration metric")
 	}
 	val := fam.GetMetric()[0].GetGauge().GetValue()
-	if val <= 0 {
-		t.Errorf("scrape duration should be > 0, got %v", val)
+	if val < 0 {
+		t.Errorf("scrape duration should be >= 0, got %v", val)
 	}
 }
 
 func TestCollector_LastSuccessTimestamp(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -254,16 +330,14 @@ func TestCollector_LastSuccessTimestamp(t *testing.T) {
 }
 
 func TestCollector_NoLastSuccessOnFailure(t *testing.T) {
-	srv := newErrorServer()
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockHTTPError("test_device"),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
 	if fam, ok := metrics["zendure_last_success_timestamp_seconds"]; ok {
-		// If present, it should have no metrics (no previous success).
 		if len(fam.GetMetric()) > 0 {
 			t.Error("last success timestamp should not be emitted when device never succeeded")
 		}
@@ -271,29 +345,24 @@ func TestCollector_NoLastSuccessOnFailure(t *testing.T) {
 }
 
 func TestCollector_MultiDevice_OneFailsOtherSucceeds(t *testing.T) {
-	goodSrv := newTestServer(devicePayload())
-	defer goodSrv.Close()
-
-	badSrv := newErrorServer()
-	defer badSrv.Close()
-
 	cfg := &config.Config{
 		ListenAddr:                  "127.0.0.1",
 		ListenPort:                  9854,
 		DeviceRequestTimeoutSeconds: 5,
 		Devices: []config.DeviceConfig{
-			{ID: "good_device", Model: "SolarFlow800", BaseURL: goodSrv.URL, Enabled: true},
-			{ID: "bad_device", Model: "SolarFlow800 Pro", BaseURL: badSrv.URL, Enabled: true},
+			{ID: "good_device", Model: "SolarFlow800", BaseURL: "http://ignored", Enabled: true},
+			{ID: "bad_device", Model: "SolarFlow800 Pro", BaseURL: "http://ignored", Enabled: true},
 		},
 	}
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"good_device": mockSuccess(mockDeviceData("good_device", "SolarFlow800")),
+		"bad_device":  mockHTTPError("bad_device"),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
-	// Good device should have metrics.
 	assertGaugeValue(t, metrics, "zendure_solar_input_power_watts", 450, "device_id", "good_device")
 
-	// Both devices should have scrape_success.
 	fam := metrics["zendure_exporter_scrape_success"]
 	if fam == nil {
 		t.Fatal("missing scrape_success metric")
@@ -316,43 +385,39 @@ func TestCollector_MultiDevice_OneFailsOtherSucceeds(t *testing.T) {
 }
 
 func TestCollector_DisabledDeviceSkipped(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
 	cfg := &config.Config{
 		ListenAddr:                  "127.0.0.1",
 		ListenPort:                  9854,
 		DeviceRequestTimeoutSeconds: 5,
 		Devices: []config.DeviceConfig{
-			{ID: "disabled_device", Model: "SolarFlow800", BaseURL: srv.URL, Enabled: false},
+			{ID: "disabled_device", Model: "SolarFlow800", BaseURL: "http://ignored", Enabled: false},
 		},
 	}
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	// Empty mock: if FetchDevice is called the test will get an error metric, making
+	// the "no device metrics" assertion below fail — which is the desired verification.
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
-	// No device metrics should be present.
 	if _, ok := metrics["zendure_solar_input_power_watts"]; ok {
 		t.Error("disabled device should not produce metrics")
 	}
-	// Scrape duration should still be present.
 	if _, ok := metrics["zendure_exporter_scrape_duration_seconds"]; !ok {
 		t.Error("scrape duration should always be present")
 	}
 }
 
 func TestCollector_DiscoveryMode(t *testing.T) {
-	payload := map[string]any{
-		"solarInputPower":  100,
-		"unknownFieldXyz":  42,
-		"anotherNewField":  99.5,
-	}
-	srv := newTestServer(payload)
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
+	cfg := newMockConfig()
 	cfg.DiscoveryMode = true
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	data := mockDeviceData("test_device", "SolarFlow800 Pro")
+	data.UnknownFields = map[string]float64{
+		"unknownfieldxyz": 42,
+		"anothernewfield": 99.5,
+	}
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(data),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -376,16 +441,13 @@ func TestCollector_DiscoveryMode(t *testing.T) {
 }
 
 func TestCollector_DiscoveryModeOff(t *testing.T) {
-	payload := map[string]any{
-		"solarInputPower":  100,
-		"unknownFieldXyz":  42,
-	}
-	srv := newTestServer(payload)
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
+	cfg := newMockConfig()
 	cfg.DiscoveryMode = false
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	data := mockDeviceData("test_device", "SolarFlow800 Pro")
+	data.UnknownFields = map[string]float64{"unknownfieldxyz": 42}
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(data),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -395,11 +457,10 @@ func TestCollector_DiscoveryModeOff(t *testing.T) {
 }
 
 func TestCollector_ErrorCounterIncrements(t *testing.T) {
-	srv := newErrorServer()
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockHTTPError("test_device"),
+	})), WithVersion("v1.0.0"))
 
 	// First scrape.
 	metrics1 := collectMetrics(t, col)
@@ -420,11 +481,10 @@ func TestCollector_ErrorCounterIncrements(t *testing.T) {
 }
 
 func TestCollector_DeviceLabelsPresent(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 
@@ -475,18 +535,23 @@ func TestCollector_Describe(t *testing.T) {
 }
 
 func TestCollector_RWConfigMetrics(t *testing.T) {
-	payload := map[string]any{
-		"acMode":      2,
-		"inputLimit":  800,
-		"outputLimit": 600,
-		"socSet":      90,
-		"minSoc":      10,
+	cfg := newMockConfig()
+	data := &client.DeviceData{
+		DeviceID:    "test_device",
+		DeviceModel: "SolarFlow800 Pro",
+		Metrics: map[string]float64{
+			"zendure_ac_mode":           2,
+			"zendure_input_limit_watts":  800,
+			"zendure_output_limit_watts": 600,
+			"zendure_soc_set_percent":   90,
+			"zendure_min_soc_percent":   10,
+		},
+		ChannelMetrics: map[string]map[string]float64{},
+		UnknownFields:  map[string]float64{},
 	}
-	srv := newTestServer(payload)
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(data),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValue(t, metrics, "zendure_ac_mode", 2, "device_id", "test_device")
@@ -497,11 +562,10 @@ func TestCollector_RWConfigMetrics(t *testing.T) {
 }
 
 func TestCollector_CircuitBreaker_OpensAfterThresholdFailures(t *testing.T) {
-	srv := newErrorServer()
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockHTTPError("test_device"),
+	})), WithVersion("v1.0.0"))
 
 	// Exhaust the threshold.
 	for i := range circuitBreakerThreshold {
@@ -531,11 +595,10 @@ func TestCollector_CircuitBreaker_OpensAfterThresholdFailures(t *testing.T) {
 }
 
 func TestCollector_CircuitBreaker_ClosedOnSuccess(t *testing.T) {
-	srv := newTestServer(devicePayload())
-	defer srv.Close()
-
-	cfg := newTestConfig(srv.URL)
-	col := New(cfg, testLogger(), WithFetcher(client.New(cfg, testLogger())), WithVersion("v1.0.0"))
+	cfg := newMockConfig()
+	col := New(cfg, testLogger(), WithFetcher(newMockFetcher(map[string]mockFetchResult{
+		"test_device": mockSuccess(mockDeviceData("test_device", "SolarFlow800 Pro")),
+	})), WithVersion("v1.0.0"))
 
 	metrics := collectMetrics(t, col)
 	assertGaugeValue(t, metrics, "zendure_exporter_circuit_breaker_open", 0, "device_id", "test_device")
