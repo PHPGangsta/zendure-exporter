@@ -1,0 +1,49 @@
+{
+  "solarInputPower": 2100,
+  "solarPower1": 1050,
+  "solarPower2": 1050,
+  "packInputPower": 0,
+  "outputPackPower": 500,
+  "outputHomePower": 1600,
+  "gridInputPower": 0,
+  "electricLevel": 85,
+  "BatVolt": 5180,
+  "packNum": 2,
+  "packState": 1,
+  "pass": 1,
+  "heatState": 0,
+  "hyperTmp": 2981,
+  "rssi": -52,
+  "acMode": 1,
+  "outputLimit": 800,
+  "socSet": 100,
+  "minSoc": 10,
+  "timestamp": 1709910000,
+  "ts": 1709910000,
+  "packData": [
+    {
+      "sn": "PACK001",
+      "socLevel": 90,
+      "state": 1,
+      "power": 250,
+      "maxTemp": 2971,
+      "totalVol": 5200,
+      "batcur": 50,
+      "maxVol": 335,
+      "minVol": 320,
+      "heatState": 0
+    },
+    {
+      "sn": "PACK002",
+      "socLevel": 80,
+      "state": 1,
+      "power": 250,
+      "maxTemp": 2961,
+      "totalVol": 5100,
+      "batcur": 48,
+      "maxVol": 333,
+      "minVol": 318,
+      "heatState": 0
+    }
+  ]
+}

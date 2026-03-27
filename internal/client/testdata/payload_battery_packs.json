@@ -1,0 +1,22 @@
+{
+  "BatVolt": 5200,
+  "packData": [
+    {
+      "sn": "EB04A001",
+      "socLevel": 80,
+      "state": 1,
+      "power": 500,
+      "maxTemp": 2981,
+      "totalVol": 4860,
+      "batcur": 50,
+      "maxVol": 330,
+      "minVol": 320
+    },
+    {
+      "sn": "EB04A002",
+      "socLevel": 60,
+      "state": 2,
+      "batcur": 65486
+    }
+  ]
+}

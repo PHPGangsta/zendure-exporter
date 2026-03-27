@@ -221,13 +221,7 @@ func TestParsePayload_TemperatureConversion(t *testing.T) {
 }
 
 func TestParsePayload_VoltageConversion(t *testing.T) {
-	payload := `{
-		"BatVolt": 5200,
-		"packData": [{
-			"sn": "PACK001",
-			"totalVol": 4860
-		}]
-	}`
+	payload := `{"BatVolt": 5200, "packData": [{"sn": "PACK001", "totalVol": 4860}]}`
 
 	c := New(testConfig("http://unused", false), testLogger())
 	data, err := c.parsePayload(testDevice("http://unused"), []byte(payload))
@@ -271,30 +265,10 @@ func TestParsePayload_SolarChannels(t *testing.T) {
 }
 
 func TestParsePayload_BatteryPacks(t *testing.T) {
-	payload := `{
-		"packData": [
-			{
-				"sn": "EB04A001",
-				"socLevel": 80,
-				"state": 1,
-				"power": 500,
-				"maxTemp": 2981,
-				"totalVol": 4860,
-				"batcur": 50,
-				"maxVol": 330,
-				"minVol": 320
-			},
-			{
-				"sn": "EB04A002",
-				"socLevel": 60,
-				"state": 2,
-				"batcur": 65486
-			}
-		]
-	}`
+	payload := mustReadTestdata(t, "payload_battery_packs.json")
 
 	c := New(testConfig("http://unused", false), testLogger())
-	data, err := c.parsePayload(testDevice("http://unused"), []byte(payload))
+	data, err := c.parsePayload(testDevice("http://unused"), payload)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -460,58 +434,10 @@ func TestParsePayload_RWConfigFields_TenthsPercentEncodings(t *testing.T) {
 }
 
 func TestParsePayload_FullRealisticPayload(t *testing.T) {
-	payload := `{
-		"solarInputPower": 2100,
-		"solarPower1": 1050,
-		"solarPower2": 1050,
-		"packInputPower": 0,
-		"outputPackPower": 500,
-		"outputHomePower": 1600,
-		"gridInputPower": 0,
-		"electricLevel": 85,
-		"BatVolt": 5180,
-		"packNum": 2,
-		"packState": 1,
-		"pass": 1,
-		"heatState": 0,
-		"hyperTmp": 2981,
-		"rssi": -52,
-		"acMode": 1,
-		"outputLimit": 800,
-		"socSet": 100,
-		"minSoc": 10,
-		"timestamp": 1709910000,
-		"ts": 1709910000,
-		"packData": [
-			{
-				"sn": "PACK001",
-				"socLevel": 90,
-				"state": 1,
-				"power": 250,
-				"maxTemp": 2971,
-				"totalVol": 5200,
-				"batcur": 50,
-				"maxVol": 335,
-				"minVol": 320,
-				"heatState": 0
-			},
-			{
-				"sn": "PACK002",
-				"socLevel": 80,
-				"state": 1,
-				"power": 250,
-				"maxTemp": 2961,
-				"totalVol": 5100,
-				"batcur": 48,
-				"maxVol": 333,
-				"minVol": 318,
-				"heatState": 0
-			}
-		]
-	}`
+	payload := mustReadTestdata(t, "payload_full_realistic.json")
 
 	c := New(testConfig("http://unused", false), testLogger())
-	data, err := c.parsePayload(testDevice("http://unused"), []byte(payload))
+	data, err := c.parsePayload(testDevice("http://unused"), payload)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -545,41 +471,10 @@ func TestParsePayload_FullRealisticPayload(t *testing.T) {
 }
 
 func TestParsePayload_WrappedPayload_RealDeviceStyle(t *testing.T) {
-	payload := `{
-		"timestamp": 1773342560,
-		"messageId": 64,
-		"sn": "EEA1NEN9N381331",
-		"version": 2,
-		"product": "solarFlow800Pro",
-		"properties": {
-			"packInputPower": 189,
-			"outputHomePower": 189,
-			"electricLevel": 64,
-			"BatVolt": 4875,
-			"socSet": 1000,
-			"minSoc": 80,
-			"fanSwitch": 1,
-			"Fanspeed": 0,
-			"oldMode": 0,
-			"solarPower1": 0,
-			"solarPower2": 0,
-			"rssi": -76
-		},
-		"packData": [{
-			"sn": "CO4EENJJN380725",
-			"socLevel": 64,
-			"state": 2,
-			"power": 194,
-			"maxTemp": 2911,
-			"totalVol": 4860,
-			"batcur": 65496,
-			"maxVol": 324,
-			"minVol": 323
-		}]
-	}`
+	payload := mustReadTestdata(t, "payload_wrapped_real_device.json")
 
 	c := New(testConfig("http://unused", true), testLogger())
-	data, err := c.parsePayload(testDevice("http://unused"), []byte(payload))
+	data, err := c.parsePayload(testDevice("http://unused"), payload)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -762,6 +657,17 @@ func TestParsePayload_IgnoredFieldsNotInMetrics(t *testing.T) {
 }
 
 // --- Helpers ---
+
+// mustReadTestdata reads a file from the testdata/ directory relative to the
+// test's package and fails the test if the file cannot be read.
+func mustReadTestdata(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatalf("reading testdata/%s: %v", name, err)
+	}
+	return data
+}
 
 func assertMetric(t *testing.T, metrics map[string]float64, name string, expected float64) {
 	t.Helper()
