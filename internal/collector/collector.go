@@ -26,18 +26,36 @@ const (
 	circuitBreakerBackoff   = 60 * time.Second
 )
 
-// deviceFetcher is the interface for fetching device data from a single Zendure device.
-// *client.Client satisfies this interface; the indirection makes the collector
-// testable without a real HTTP server and decouples the two packages.
-type deviceFetcher interface {
+// Fetcher is the interface for fetching device data from a single Zendure device.
+// *client.Client satisfies this interface; the indirection decouples the two
+// packages and allows test doubles to be injected via WithFetcher.
+type Fetcher interface {
 	FetchDevice(dev config.DeviceConfig) (*client.DeviceData, error)
+}
+
+// Option configures a Collector. Options are applied after the defaults are
+// set in New, so each option only overrides specific fields.
+type Option func(*Collector)
+
+// WithVersion sets the version string reported in the build_info metric.
+// Defaults to "dev" when not provided.
+func WithVersion(v string) Option {
+	return func(c *Collector) { c.version = v }
+}
+
+// WithFetcher overrides the Fetcher used to retrieve device data on each scrape.
+// Intended for testing — supply a mock to exercise the collector without real
+// HTTP calls. Production code should omit this option and let New create a
+// *client.Client automatically.
+func WithFetcher(f Fetcher) Option {
+	return func(c *Collector) { c.fetcher = f }
 }
 
 // Collector implements prometheus.Collector. It fetches metrics from Zendure
 // devices on every Prometheus scrape and exposes them as Prometheus metrics.
 type Collector struct {
 	cfg     *config.Config
-	fetcher deviceFetcher
+	fetcher Fetcher
 	logger  *slog.Logger
 	version string
 
@@ -78,13 +96,20 @@ type Collector struct {
 	scrapeCounter atomic.Uint64
 }
 
-// New creates a new Collector instance.
-func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
+// New creates a new Collector. The defaults are:
+//   - fetcher: a *client.Client constructed from cfg and logger
+//   - version: "dev"
+//
+// Pass functional options to override either default:
+//
+//	collector.New(cfg, logger, collector.WithVersion("v1.2.3"))
+//	collector.New(cfg, logger, collector.WithFetcher(myMock))
+func New(cfg *config.Config, logger *slog.Logger, opts ...Option) *Collector {
 	c := &Collector{
 		cfg:     cfg,
 		fetcher: client.New(cfg, logger),
 		logger:  logger,
-		version: version,
+		version: "dev",
 
 		deviceMetrics:  make(map[string]*prometheus.Desc),
 		channelMetrics: make(map[string]*prometheus.Desc),
@@ -95,6 +120,10 @@ func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 		lastSuccessTimes:    make(map[string]float64),
 		consecutiveFailures: make(map[string]int),
 		circuitOpenUntil:    make(map[string]time.Time),
+	}
+
+	for _, opt := range opts {
+		opt(c)
 	}
 
 	c.registerDeviceMetrics()
@@ -110,14 +139,6 @@ func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 		)
 	}
 
-	return c
-}
-
-// NewWithClient creates a Collector with an injected fetcher (for testing).
-// Any value satisfying deviceFetcher (e.g. *client.Client) is accepted.
-func NewWithClient(cfg *config.Config, logger *slog.Logger, cl deviceFetcher, version string) *Collector {
-	c := New(cfg, logger, version)
-	c.fetcher = cl
 	return c
 }
 

@@ -2,7 +2,7 @@
 //
 // [Collector] implements [prometheus.Collector] and orchestrates parallel metric
 // collection from one or more Zendure devices on every Prometheus scrape. It
-// depends on the [deviceFetcher] interface (satisfied by *client.Client) for
+// depends on the [Fetcher] interface (satisfied by *client.Client) for
 // HTTP interaction, which keeps the two packages loosely coupled and the
 // collector independently testable.
 //

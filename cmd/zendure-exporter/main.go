@@ -83,7 +83,7 @@ func main() {
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	zendureCollector := collector.New(cfg, logger, getVersion())
+	zendureCollector := collector.New(cfg, logger, collector.WithVersion(getVersion()))
 	registry.MustRegister(zendureCollector)
 
 	mux := http.NewServeMux()
