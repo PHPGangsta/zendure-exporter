@@ -17,6 +17,14 @@ var packLabels = []string{"device_id", "device_model", "pack_sn"}
 var channelLabels = []string{"device_id", "device_model", "channel"}
 var discoveryLabels = []string{"device_id", "device_model", "field"}
 
+// Circuit-breaker constants. A device is skipped for circuitBreakerBackoff after
+// circuitBreakerThreshold consecutive fetch failures. The counter resets after a
+// successful fetch or when the backoff window expires.
+const (
+	circuitBreakerThreshold = 5
+	circuitBreakerBackoff   = 60 * time.Second
+)
+
 // deviceFetcher is the interface for fetching device data from a single Zendure device.
 // *client.Client satisfies this interface; the indirection makes the collector
 // testable without a real HTTP server and decouples the two packages.
@@ -50,6 +58,7 @@ type Collector struct {
 	lastSuccessTS      *prometheus.Desc
 	unknownFieldsTotal *prometheus.Desc
 	fetchDuration      *prometheus.Desc
+	circuitBreakerOpen *prometheus.Desc
 
 	// Mutable state for counters (persisted across scrapes).
 	mu                  sync.Mutex
@@ -57,6 +66,10 @@ type Collector struct {
 	unknownFieldCounts  map[string]float64 // key: device_id
 	lastSuccessTimes    map[string]float64 // key: device_id
 	hasSucceeded        bool               // true after at least one successful scrape
+
+	// Per-device circuit-breaker state.
+	consecutiveFailures map[string]int       // key: device_id
+	circuitOpenUntil    map[string]time.Time // key: device_id; zero value = closed
 }
 
 // New creates a new Collector instance.
@@ -74,6 +87,8 @@ func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 		upstreamErrorCounts: make(map[string]float64),
 		unknownFieldCounts:  make(map[string]float64),
 		lastSuccessTimes:    make(map[string]float64),
+		consecutiveFailures: make(map[string]int),
+		circuitOpenUntil:    make(map[string]time.Time),
 	}
 
 	c.registerDeviceMetrics()
@@ -217,6 +232,11 @@ func (c *Collector) registerSelfMetrics() {
 		"Duration of HTTP fetch per device in seconds",
 		deviceLabels, nil,
 	)
+	c.circuitBreakerOpen = prometheus.NewDesc(
+		"zendure_exporter_circuit_breaker_open",
+		"1 if the per-device circuit breaker is open (device fetch skipped), 0 otherwise",
+		deviceLabels, nil,
+	)
 }
 
 // Ready returns true after at least one successful device scrape.
@@ -248,6 +268,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.lastSuccessTS
 	ch <- c.unknownFieldsTotal
 	ch <- c.fetchDuration
+	ch <- c.circuitBreakerOpen
 }
 
 // Collect implements prometheus.Collector. It fetches device data on every scrape.
@@ -276,8 +297,39 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	)
 }
 
+// isCircuitOpen reports whether the circuit breaker for deviceID is open.
+// If the backoff window has expired, it resets the consecutive-failure counter
+// and closes the circuit so the next call gets a fresh attempt.
+// Must be called with c.mu held.
+func (c *Collector) isCircuitOpen(deviceID string) bool {
+	until, ok := c.circuitOpenUntil[deviceID]
+	if !ok || until.IsZero() {
+		return false
+	}
+	if time.Now().Before(until) {
+		return true
+	}
+	// Backoff expired: close circuit and give device a fresh consecutive-failure count.
+	c.consecutiveFailures[deviceID] = 0
+	delete(c.circuitOpenUntil, deviceID)
+	return false
+}
+
 func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.DeviceConfig) {
 	labels := []string{dev.ID, dev.Model}
+
+	c.mu.Lock()
+	circuitOpen := c.isCircuitOpen(dev.ID)
+	c.mu.Unlock()
+
+	if circuitOpen {
+		c.logger.Warn("circuit open, skipping device fetch",
+			"device_id", dev.ID, "base_url", dev.BaseURL)
+		ch <- prometheus.MustNewConstMetric(c.scrapeSuccess, prometheus.GaugeValue, 0, labels...)
+		ch <- prometheus.MustNewConstMetric(c.circuitBreakerOpen, prometheus.GaugeValue, 1, labels...)
+		c.emitCounters(ch, dev)
+		return
+	}
 
 	fetchStart := time.Now()
 	data, err := c.fetcher.FetchDevice(dev)
@@ -291,10 +343,19 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 
 		c.mu.Lock()
 		c.upstreamErrorCounts[dev.ID]++
+		c.consecutiveFailures[dev.ID]++
+		if c.consecutiveFailures[dev.ID] >= circuitBreakerThreshold {
+			c.circuitOpenUntil[dev.ID] = time.Now().Add(circuitBreakerBackoff)
+			c.logger.Warn("circuit breaker opened",
+				"device_id", dev.ID,
+				"consecutive_failures", c.consecutiveFailures[dev.ID],
+				"backoff_seconds", int(circuitBreakerBackoff.Seconds()))
+		}
 		c.mu.Unlock()
 
 		// Emit failure self-metrics; do NOT emit device metrics.
 		ch <- prometheus.MustNewConstMetric(c.scrapeSuccess, prometheus.GaugeValue, 0, labels...)
+		ch <- prometheus.MustNewConstMetric(c.circuitBreakerOpen, prometheus.GaugeValue, 0, labels...)
 		c.emitCounters(ch, dev)
 		return
 	}
@@ -338,13 +399,15 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 		}
 	}
 
-	// Record success.
+	// Record success: reset circuit-breaker state and update timestamps.
 	c.mu.Lock()
+	c.consecutiveFailures[dev.ID] = 0
 	c.lastSuccessTimes[dev.ID] = float64(time.Now().Unix())
 	c.hasSucceeded = true
 	c.mu.Unlock()
 
 	ch <- prometheus.MustNewConstMetric(c.scrapeSuccess, prometheus.GaugeValue, 1, labels...)
+	ch <- prometheus.MustNewConstMetric(c.circuitBreakerOpen, prometheus.GaugeValue, 0, labels...)
 	c.emitCounters(ch, dev)
 }
 

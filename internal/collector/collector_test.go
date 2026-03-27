@@ -496,6 +496,52 @@ func TestCollector_RWConfigMetrics(t *testing.T) {
 	assertGaugeValue(t, metrics, "zendure_min_soc_percent", 10, "device_id", "test_device")
 }
 
+func TestCollector_CircuitBreaker_OpensAfterThresholdFailures(t *testing.T) {
+	srv := newErrorServer()
+	defer srv.Close()
+
+	cfg := newTestConfig(srv.URL)
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
+
+	// Exhaust the threshold.
+	for i := range circuitBreakerThreshold {
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(col)
+		_, err := reg.Gather()
+		if err != nil {
+			t.Fatalf("gather %d failed: %v", i, err)
+		}
+	}
+
+	// Next scrape: circuit should be open (no fetch attempted, circuit_breaker_open=1).
+	metrics := collectMetrics(t, col)
+	assertGaugeValue(t, metrics, "zendure_exporter_circuit_breaker_open", 1, "device_id", "test_device")
+	assertGaugeValue(t, metrics, "zendure_exporter_scrape_success", 0, "device_id", "test_device")
+
+	// fetchDuration should NOT be present when circuit is open (no fetch happened).
+	if fam, ok := metrics["zendure_exporter_device_fetch_duration_seconds"]; ok {
+		for _, m := range fam.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "device_id" && l.GetValue() == "test_device" {
+					t.Error("fetch duration should not be emitted when circuit is open")
+				}
+			}
+		}
+	}
+}
+
+func TestCollector_CircuitBreaker_ClosedOnSuccess(t *testing.T) {
+	srv := newTestServer(devicePayload())
+	defer srv.Close()
+
+	cfg := newTestConfig(srv.URL)
+	col := NewWithClient(cfg, testLogger(), client.New(cfg, testLogger()), "v1.0.0")
+
+	metrics := collectMetrics(t, col)
+	assertGaugeValue(t, metrics, "zendure_exporter_circuit_breaker_open", 0, "device_id", "test_device")
+	assertGaugeValue(t, metrics, "zendure_exporter_scrape_success", 1, "device_id", "test_device")
+}
+
 // --- Helpers ---
 
 func assertGaugeValue(t *testing.T, metrics map[string]*io_prometheus.MetricFamily, name string, expected float64, labelName, labelValue string) {
