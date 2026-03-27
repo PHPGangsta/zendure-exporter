@@ -17,12 +17,19 @@ var packLabels = []string{"device_id", "device_model", "pack_sn"}
 var channelLabels = []string{"device_id", "device_model", "channel"}
 var discoveryLabels = []string{"device_id", "device_model", "field"}
 
+// deviceFetcher is the interface for fetching device data from a single Zendure device.
+// *client.Client satisfies this interface; the indirection makes the collector
+// testable without a real HTTP server and decouples the two packages.
+type deviceFetcher interface {
+	FetchDevice(dev config.DeviceConfig) (*client.DeviceData, error)
+}
+
 // Collector implements prometheus.Collector. It fetches metrics from Zendure
 // devices on every Prometheus scrape and exposes them as Prometheus metrics.
 type Collector struct {
-	cfg    *config.Config
-	client *client.Client
-	logger *slog.Logger
+	cfg     *config.Config
+	fetcher deviceFetcher
+	logger  *slog.Logger
 	version string
 
 	// Device-level metric descriptors (keyed by metric name from client).
@@ -56,7 +63,7 @@ type Collector struct {
 func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 	c := &Collector{
 		cfg:     cfg,
-		client:  client.New(cfg, logger),
+		fetcher: client.New(cfg, logger),
 		logger:  logger,
 		version: version,
 
@@ -85,10 +92,11 @@ func New(cfg *config.Config, logger *slog.Logger, version string) *Collector {
 	return c
 }
 
-// NewWithClient creates a Collector with an injected client (for testing).
-func NewWithClient(cfg *config.Config, logger *slog.Logger, cl *client.Client, version string) *Collector {
+// NewWithClient creates a Collector with an injected fetcher (for testing).
+// Any value satisfying deviceFetcher (e.g. *client.Client) is accepted.
+func NewWithClient(cfg *config.Config, logger *slog.Logger, cl deviceFetcher, version string) *Collector {
 	c := New(cfg, logger, version)
-	c.client = cl
+	c.fetcher = cl
 	return c
 }
 
@@ -272,7 +280,7 @@ func (c *Collector) collectDevice(ch chan<- prometheus.Metric, dev config.Device
 	labels := []string{dev.ID, dev.Model}
 
 	fetchStart := time.Now()
-	data, err := c.client.FetchDevice(dev)
+	data, err := c.fetcher.FetchDevice(dev)
 	fetchDuration := time.Since(fetchStart).Seconds()
 
 	ch <- prometheus.MustNewConstMetric(c.fetchDuration, prometheus.GaugeValue, fetchDuration, labels...)
