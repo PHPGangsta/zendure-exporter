@@ -2,6 +2,8 @@ package client
 
 import (
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/PHPGangsta/zendure-exporter/internal/config"
 )
@@ -34,14 +36,30 @@ type BatteryPackData struct {
 
 // Client fetches and parses metrics from Zendure device HTTP APIs.
 type Client struct {
-	cfg    *config.Config
-	logger *slog.Logger
+	cfg        *config.Config
+	logger     *slog.Logger
+	httpClient *http.Client
 }
 
 // New creates a new Client with the given config and logger.
+//
+// Each Client owns a dedicated *http.Client so that its connection pool is
+// isolated from the process-wide http.DefaultClient and from other Client
+// instances. The transport is tuned for scraping a small number of LAN devices:
+// low idle-connection ceiling, short keepalive, compression disabled.
 func New(cfg *config.Config, logger *slog.Logger) *Client {
 	return &Client{
 		cfg:    cfg,
 		logger: logger,
+		httpClient: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        5,
+				MaxIdleConnsPerHost: 2,
+				IdleConnTimeout:     30 * time.Second,
+				DisableCompression:  true,
+			},
+			// No client-level timeout: per-request context timeouts (set in
+			// FetchDevice from config) are the authoritative deadline.
+		},
 	}
 }

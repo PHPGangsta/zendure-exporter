@@ -25,7 +25,7 @@ func (c *Client) FetchDevice(dev config.DeviceConfig) (*DeviceData, error) {
 		return nil, &ErrUnreachable{URL: url, Err: err}
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, &ErrUnreachable{URL: url, Err: err}
 	}
