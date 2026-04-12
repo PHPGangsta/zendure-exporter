@@ -108,6 +108,7 @@ listen_addr: 0.0.0.0
 listen_port: 9854
 discovery_mode: false
 debug: false
+go_process_metrics: true
 device_request_timeout_seconds: 5
 
 devices:
@@ -130,6 +131,7 @@ devices:
 | `listen_port` | int | `9854` | Port for `/metrics` and `/health` endpoints (1–65535) |
 | `discovery_mode` | bool | `false` | Expose unknown numeric fields as `zendure_unknown_property` gauge (see [Discovery Mode](#discovery-mode)) |
 | `debug` | bool | `false` | Enable debug logging (includes raw API payloads) |
+| `go_process_metrics` | bool | `true` | Register Go runtime (`go_*`) and process (`process_*`) collectors. Set to `false` to omit them from `/metrics` |
 | `device_request_timeout_seconds` | int | `5` | HTTP timeout per device request in seconds (≥ 1) |
 
 ### Per-Device Settings
