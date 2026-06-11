@@ -44,6 +44,9 @@ devices:
 	if cfg.Debug {
 		t.Error("expected debug default false")
 	}
+	if !cfg.GoProcessMetrics {
+		t.Error("expected go_process_metrics default true")
+	}
 }
 
 func TestLoad_ValidFullConfig(t *testing.T) {
@@ -52,6 +55,7 @@ listen_addr: 127.0.0.1
 listen_port: 8080
 discovery_mode: true
 debug: true
+go_process_metrics: false
 device_request_timeout_seconds: 10
 devices:
   - id: dev1
@@ -79,6 +83,9 @@ devices:
 	}
 	if !cfg.Debug {
 		t.Error("expected debug true")
+	}
+	if cfg.GoProcessMetrics {
+		t.Error("expected go_process_metrics false")
 	}
 	if cfg.DeviceRequestTimeoutSeconds != 10 {
 		t.Errorf("expected timeout 10, got %d", cfg.DeviceRequestTimeoutSeconds)

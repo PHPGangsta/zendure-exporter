@@ -80,8 +80,10 @@ func main() {
 	}
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewGoCollector())
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	if cfg.GoProcessMetrics {
+		registry.MustRegister(collectors.NewGoCollector())
+		registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	}
 
 	zendureCollector := collector.New(cfg, logger, collector.WithVersion(getVersion()))
 	registry.MustRegister(zendureCollector)

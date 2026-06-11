@@ -24,6 +24,7 @@ type Config struct {
 	ListenPort                  int            `yaml:"listen_port"`
 	DiscoveryMode               bool           `yaml:"discovery_mode"`
 	Debug                       bool           `yaml:"debug"`
+	GoProcessMetrics            bool           `yaml:"go_process_metrics"`
 	DeviceRequestTimeoutSeconds int            `yaml:"device_request_timeout_seconds"`
 	Devices                     []DeviceConfig `yaml:"devices"`
 }
@@ -38,6 +39,7 @@ func Load(path string) (*Config, error) {
 	cfg := &Config{
 		ListenAddr:                  "0.0.0.0",
 		ListenPort:                  9854,
+		GoProcessMetrics:            true,
 		DeviceRequestTimeoutSeconds: 5,
 	}
 

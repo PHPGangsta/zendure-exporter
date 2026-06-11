@@ -2,6 +2,7 @@ listen_addr: 0.0.0.0
 listen_port: 9854
 discovery_mode: false
 debug: false
+go_process_metrics: true
 
 device_request_timeout_seconds: 5
 
