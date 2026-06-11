@@ -256,6 +256,8 @@ scrape_configs:
 
 A single exporter instance serves metrics for all configured devices. Individual devices are distinguished by `device_id` and `device_model` labels on every metric. Battery packs additionally carry a `pack_sn` label, and per-PV-channel metrics have a `channel` label.
 
+The exporter supports OpenMetrics content negotiation via `prometheus/client_golang`. Prometheus 2.x will automatically negotiate OpenMetrics format when scraping the `/metrics` endpoint.
+
 ## Maintenance
 
 ### Adding New Zendure Fields/Metrics

@@ -74,9 +74,9 @@ type Collector struct {
 	// Mutable state for counters (persisted across scrapes).
 	mu                  sync.Mutex
 	upstreamErrorCounts map[string]map[string]float64 // device_id -> error_type -> count
-	unknownFieldCounts  map[string]float64             // key: device_id
-	lastSuccessTimes    map[string]float64             // key: device_id
-	hasSucceeded        bool                           // true after at least one successful scrape
+	unknownFieldCounts  map[string]float64            // key: device_id
+	lastSuccessTimes    map[string]float64            // key: device_id
+	hasSucceeded        bool                          // true after at least one successful scrape
 
 	// Per-device circuit-breaker state.
 	consecutiveFailures map[string]int       // key: device_id

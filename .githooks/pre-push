@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# Pre-push guardrail for zendure-exporter.
+# Install once per clone with:  make hooks
+#
+# Runs the same gates as CI (gofmt-aware lint + race tests) plus a
+# reachability-aware vulnerability scan, so problems are caught locally
+# before they reach the remote / CI.
+set -e
+
+echo "[pre-push] make check  (go test -race + golangci-lint, incl. gofmt)..."
+make check
+
+echo "[pre-push] make vuln   (govulncheck)..."
+make vuln
+
+echo "[pre-push] all checks passed."

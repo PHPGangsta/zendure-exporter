@@ -76,3 +76,9 @@ linters:
         linters:
           - revive
         text: "unused-parameter"
+
+formatters:
+  # Enforce gofmt: `golangci-lint run` now also fails on unformatted code
+  # (and `golangci-lint fmt` can auto-apply it).
+  enable:
+    - gofmt

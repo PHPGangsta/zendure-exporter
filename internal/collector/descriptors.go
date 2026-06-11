@@ -5,18 +5,18 @@ import "github.com/prometheus/client_golang/prometheus"
 func (c *Collector) registerDeviceMetrics() {
 	defs := map[string]string{
 		// Power metrics
-		"zendure_solar_input_power_watts":  "Total PV input power in watts",
-		"zendure_pack_input_power_watts":   "Battery discharge power in watts",
-		"zendure_output_pack_power_watts":  "Battery charge power in watts",
-		"zendure_output_home_power_watts":  "Output power to home in watts",
-		"zendure_grid_input_power_watts":   "Grid input power in watts",
-		"zendure_grid_off_power_watts":     "Off-grid power in watts",
+		"zendure_solar_input_power_watts": "Total PV input power in watts",
+		"zendure_pack_input_power_watts":  "Battery discharge power in watts",
+		"zendure_output_pack_power_watts": "Battery charge power in watts",
+		"zendure_output_home_power_watts": "Output power to home in watts",
+		"zendure_grid_input_power_watts":  "Grid input power in watts",
+		"zendure_grid_off_power_watts":    "Off-grid power in watts",
 		// Battery / SOC
-		"zendure_electric_level_percent":   "Average state of charge in percent",
-		"zendure_battery_voltage_volts":    "Battery voltage in volts",
-		"zendure_pack_num":                 "Number of battery packs",
-		"zendure_remain_out_time_minutes":  "Remaining discharge time in minutes",
-		"zendure_charge_max_limit_watts":   "Max charge power limit in watts",
+		"zendure_electric_level_percent":  "Average state of charge in percent",
+		"zendure_battery_voltage_volts":   "Battery voltage in volts",
+		"zendure_pack_num":                "Number of battery packs",
+		"zendure_remain_out_time_minutes": "Remaining discharge time in minutes",
+		"zendure_charge_max_limit_watts":  "Max charge power limit in watts",
 		// State / Status
 		"zendure_pack_state":    "Pack state: 0=Standby, 1=Charging, 2=Discharging",
 		"zendure_pass":          "Pass-through state (0/1)",

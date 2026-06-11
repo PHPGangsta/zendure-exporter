@@ -8,6 +8,8 @@
 #   run          Build and run the exporter with config.yml (Ctrl-C to stop)
 #   clean        Remove build artefacts
 #   check        Run test and lint together (CI-style gate)
+#   vuln         Scan for known vulnerabilities (govulncheck)
+#   hooks        Install the git pre-push hook (core.hooksPath=.githooks)
 #   help         Print this target list
 #
 # Variables
@@ -29,7 +31,7 @@ CONFIG     ?= config.yml
 LDFLAGS    := -s -w -X main.version=$(VERSION)
 BUILD_CMD  := CGO_ENABLED=0 go build $(GOFLAGS) -ldflags="$(LDFLAGS)"
 
-.PHONY: build test lint run clean check help
+.PHONY: build test lint run clean check vuln hooks help
 
 ## build: compile the binary into bin/
 build: $(OUTPUT)
@@ -57,6 +59,15 @@ clean:
 
 ## check: run test + lint (used as a CI gate)
 check: test lint
+
+## vuln: scan for known vulnerabilities (govulncheck, reachability-aware)
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.3.0 ./...
+
+## hooks: install the git pre-push hook (sets core.hooksPath to .githooks)
+hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-push hook installed (core.hooksPath=.githooks)"
 
 ## help: list available targets
 help:
